@@ -18,8 +18,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { PageHeader } from '@/components/PageHeader';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { GroupsManager } from '@/components/settings/GroupsManager';
 import { CategoriesManager } from '@/components/settings/CategoriesManager';
+import { RecurringSection } from '@/components/automate/RecurringSection';
+import { ImportSection } from '@/components/automate/ImportSection';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile, useUpdateProfile } from '@/hooks/useProfile';
 import { useGroups } from '@/hooks/useGroups';
@@ -173,6 +176,30 @@ export default function Settings() {
         </CardHeader>
         <CardContent className="p-4 pt-2">
           <CategoriesManager />
+        </CardContent>
+      </Card>
+
+      {/* Automation — recurring rules + statement import */}
+      <Card id="automation">
+        <CardHeader className="p-4 pb-2">
+          <CardTitle className="text-sm">Automation</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Recurring rules fire on app load. Paste bank statements to bulk-add.
+          </p>
+        </CardHeader>
+        <CardContent className="p-4 pt-2">
+          <Tabs defaultValue="recurring" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="recurring">🔁 Recurring</TabsTrigger>
+              <TabsTrigger value="import">📥 Import</TabsTrigger>
+            </TabsList>
+            <TabsContent value="recurring">
+              <RecurringSection />
+            </TabsContent>
+            <TabsContent value="import">
+              <ImportSection />
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
 

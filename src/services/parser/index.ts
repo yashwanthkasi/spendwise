@@ -5,6 +5,7 @@ import { PARSE_CONFIDENCE_THRESHOLD } from '@/lib/constants';
 
 export type { ParsedTransaction, ParseContext } from './types';
 export { PARSE_CONFIDENCE_THRESHOLD };
+export { parseMulti } from './multi';
 
 export async function parseTransaction(
   input: string,

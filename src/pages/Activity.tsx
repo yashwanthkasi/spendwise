@@ -4,12 +4,12 @@ import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import {
   Plus,
-  Search,
+  CalendarDays,
+  SlidersHorizontal,
   ArrowUpRight,
   ArrowDownLeft,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { SheetBody } from '@/components/ui/sheet';
 import { PageHeader } from '@/components/PageHeader';
@@ -18,6 +18,7 @@ import { TransactionRow } from '@/components/TransactionRow';
 import { TransactionDetailSheet } from '@/components/TransactionDetailSheet';
 import { QuickGroupSheet } from '@/components/QuickGroupSheet';
 import { useGroups } from '@/hooks/useGroups';
+import { useCategories } from '@/hooks/useCategories';
 import {
   useCreateTransaction,
   useDeleteTransaction,
@@ -27,62 +28,125 @@ import {
 } from '@/hooks/useTransactions';
 import type { TransactionType } from '@/lib/db-types';
 import { formatINR, cn } from '@/lib/utils';
-
-type Filter = 'all' | 'expense' | 'income' | 'investment' | 'lending' | 'transfer';
-
-const TYPE_CHIPS: Array<{ value: Filter; label: string; emoji: string }> = [
-  { value: 'all', label: 'All', emoji: '✨' },
-  { value: 'expense', label: 'Expense', emoji: '💸' },
-  { value: 'income', label: 'Income', emoji: '💰' },
-  { value: 'investment', label: 'Invest', emoji: '📈' },
-  { value: 'lending', label: 'Lending', emoji: '🤝' },
-  { value: 'transfer', label: 'Transfer', emoji: '🔁' },
-];
+import {
+  rangeFromKey,
+  rangeFromParams,
+  type DateRange,
+} from '@/lib/dateRange';
+import { DateRangeSheet } from '@/components/activity/DateRangeSheet';
+import {
+  FiltersSheet,
+  type TypeFilter,
+} from '@/components/activity/FiltersSheet';
+import { StatsBar } from '@/components/activity/StatsBar';
+import { AiSummaryCard } from '@/components/activity/AiSummaryCard';
 
 export default function Activity() {
   const [params, setParams] = useSearchParams();
-  const [filter, setFilter] = useState<Filter>(
-    (params.get('filter') as Filter | null) ?? 'all',
+
+  // ── filter state ────────────────────────────────────────────────────
+  const [range, setRange] = useState<DateRange>(() => rangeFromParams(params));
+  const [filter, setFilter] = useState<TypeFilter>(
+    (params.get('filter') as TypeFilter | null) ?? 'all',
   );
   const [groupFilter, setGroupFilter] = useState<string>(
     params.get('group') ?? 'all',
   );
-  const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string>(
+    params.get('cat') ?? 'all',
+  );
+  const [search, setSearch] = useState<string>(params.get('q') ?? '');
 
+  // ── sheet state ─────────────────────────────────────────────────────
+  const [dateOpen, setDateOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [newGroupOpen, setNewGroupOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<TransactionWithRelations | null>(null);
   const [selected, setSelected] = useState<TransactionWithRelations | null>(null);
-  const [newGroupOpen, setNewGroupOpen] = useState(false);
 
-  const typeFilter: TransactionType | 'all' = filter === 'all' ? 'all' : filter;
-
+  // ── data ────────────────────────────────────────────────────────────
   const { data: txns = [], isLoading } = useTransactions({
-    type: typeFilter,
+    type: filter === 'all' ? 'all' : (filter as TransactionType),
     groupId: groupFilter === 'all' ? 'all' : groupFilter,
+    categoryId: categoryFilter === 'all' ? 'all' : categoryFilter,
     search: search || undefined,
-    limit: 500,
+    from: range.from ?? undefined,
+    to: range.to ?? undefined,
+    limit: 1000,
   });
   const { data: groups = [] } = useGroups();
+  const { data: categories = [] } = useCategories();
 
   const create = useCreateTransaction();
   const update = useUpdateTransaction();
   const del = useDeleteTransaction();
 
-  // Sync filter/group back to URL
+  // ── URL sync ───────────────────────────────────────────────────────
   useEffect(() => {
     const next = new URLSearchParams(params);
+    // range
+    if (range.key === 'this-month') next.delete('range');
+    else next.set('range', range.key);
+    if (range.key === 'custom' && range.from && range.to) {
+      next.set('from', range.from.slice(0, 10));
+      next.set('to', range.to.slice(0, 10));
+    } else {
+      next.delete('from');
+      next.delete('to');
+    }
+    // others
     if (filter === 'all') next.delete('filter');
     else next.set('filter', filter);
     if (groupFilter === 'all') next.delete('group');
     else next.set('group', groupFilter);
+    if (categoryFilter === 'all') next.delete('cat');
+    else next.set('cat', categoryFilter);
+    if (!search) next.delete('q');
+    else next.set('q', search);
     setParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter, groupFilter]);
+  }, [range, filter, groupFilter, categoryFilter, search]);
 
-  const total = useMemo(
-    () => txns.reduce((acc, t) => acc + Number(t.amount), 0),
-    [txns],
-  );
+  // drop category that no longer matches selected type
+  useEffect(() => {
+    if (categoryFilter === 'all' || filter === 'all') return;
+    const c = categories.find((x) => x.id === categoryFilter);
+    if (c && c.type !== filter) setCategoryFilter('all');
+  }, [filter, categoryFilter, categories]);
+
+  // ── derived ────────────────────────────────────────────────────────
+  const activeFilterCount =
+    (filter !== 'all' ? 1 : 0) +
+    (groupFilter !== 'all' ? 1 : 0) +
+    (categoryFilter !== 'all' ? 1 : 0) +
+    (search ? 1 : 0);
+  const filtersActive = activeFilterCount > 0 || range.key !== 'this-month';
+
+  function clearAll() {
+    setRange(rangeFromKey('this-month'));
+    setFilter('all');
+    setGroupFilter('all');
+    setCategoryFilter('all');
+    setSearch('');
+  }
+
+  const filterDesc = useMemo(() => {
+    const parts: string[] = [];
+    if (filter !== 'all') parts.push(`type=${filter}`);
+    if (groupFilter !== 'all') {
+      const g = groups.find((x) => x.id === groupFilter);
+      if (g) parts.push(`group=${g.name}`);
+    }
+    if (categoryFilter !== 'all') {
+      const c = categories.find((x) => x.id === categoryFilter);
+      if (c) parts.push(`category=${c.name}`);
+    }
+    if (search) parts.push(`search="${search}"`);
+    return parts.length ? parts.join(', ') : 'no filters';
+  }, [filter, groupFilter, categoryFilter, search, groups, categories]);
+
+  const insightSignature = `${range.key}|${range.from}|${range.to}|${filter}|${groupFilter}|${categoryFilter}|${search}`;
 
   const lendingSummary = useMemo(() => {
     if (filter !== 'lending') return null;
@@ -97,6 +161,7 @@ export default function Activity() {
     return { lent, borrowed };
   }, [txns, filter]);
 
+  // ── mutations ──────────────────────────────────────────────────────
   async function handleDelete(t: TransactionWithRelations) {
     if (!confirm('Delete this transaction?')) return;
     try {
@@ -125,10 +190,9 @@ export default function Activity() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <PageHeader
         title="Activity"
-        subtitle={`${txns.length} · ${formatINR(total)}`}
         action={
           <Button onClick={() => setAddOpen(true)} size="sm" className="gap-1.5">
             <Plus className="h-4 w-4" />
@@ -137,56 +201,42 @@ export default function Activity() {
         }
       />
 
-      {/* Search */}
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
-          placeholder="Search notes"
+      {/* Filter bar — two pills */}
+      <div className="flex flex-wrap items-center gap-2">
+        <FilterPill
+          icon={<CalendarDays className="h-4 w-4" />}
+          label={range.label}
+          onClick={() => setDateOpen(true)}
+          primary
         />
+        <FilterPill
+          icon={<SlidersHorizontal className="h-4 w-4" />}
+          label="Filters"
+          onClick={() => setFiltersOpen(true)}
+          badge={activeFilterCount}
+        />
+        {filtersActive && (
+          <button
+            onClick={clearAll}
+            className="ml-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+          >
+            Reset
+          </button>
+        )}
       </div>
 
-      {/* Type chips */}
-      <ChipRow>
-        {TYPE_CHIPS.map((c) => (
-          <Chip
-            key={c.value}
-            active={filter === c.value}
-            onClick={() => setFilter(c.value)}
-          >
-            <span>{c.emoji}</span>
-            {c.label}
-          </Chip>
-        ))}
-      </ChipRow>
+      {/* Stats — react to current filter set */}
+      <StatsBar txns={txns} filter={filter} />
 
-      {/* Group chips */}
-      <ChipRow>
-        <Chip active={groupFilter === 'all'} onClick={() => setGroupFilter('all')}>
-          <span>📂</span> All groups
-        </Chip>
-        {groups.map((g) => (
-          <Chip
-            key={g.id}
-            active={groupFilter === g.id}
-            onClick={() => setGroupFilter(g.id)}
-            color={g.color}
-          >
-            <span>{g.emoji ?? '📁'}</span>
-            {g.name}
-          </Chip>
-        ))}
-        <button
-          onClick={() => setNewGroupOpen(true)}
-          className="flex shrink-0 items-center gap-1 rounded-full border border-dashed px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-primary hover:text-primary"
-        >
-          <Plus className="h-3 w-3" /> New group
-        </button>
-      </ChipRow>
+      {/* AI insight */}
+      <AiSummaryCard
+        txns={txns}
+        rangeLabel={range.label}
+        filterDesc={filterDesc}
+        signature={insightSignature}
+      />
 
-      {/* Lending summary — only on lending filter */}
+      {/* Lending sub-summary when narrowed to lending */}
       {lendingSummary && (
         <div className="grid grid-cols-2 gap-2">
           <Card>
@@ -195,7 +245,9 @@ export default function Activity() {
                 <ArrowUpRight className="h-4 w-4" />
               </div>
               <div>
-                <div className="text-xs text-muted-foreground">They owe you</div>
+                <div className="text-xs text-muted-foreground">
+                  Outstanding · they owe you
+                </div>
                 <div className="text-sm font-semibold tabular-nums">
                   {formatINR(lendingSummary.lent)}
                 </div>
@@ -208,7 +260,9 @@ export default function Activity() {
                 <ArrowDownLeft className="h-4 w-4" />
               </div>
               <div>
-                <div className="text-xs text-muted-foreground">You owe</div>
+                <div className="text-xs text-muted-foreground">
+                  Outstanding · you owe
+                </div>
                 <div className="text-sm font-semibold tabular-nums">
                   {formatINR(lendingSummary.borrowed)}
                 </div>
@@ -218,12 +272,20 @@ export default function Activity() {
         </div>
       )}
 
-      {/* List — uniform, tappable rows */}
+      {/* List */}
       {isLoading ? (
         <p className="py-6 text-center text-sm text-muted-foreground">Loading…</p>
       ) : txns.length === 0 ? (
-        <div className="rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground">
-          Nothing matches these filters.
+        <div className="space-y-2 rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground">
+          <div>Nothing matches these filters.</div>
+          {filtersActive && (
+            <button
+              onClick={clearAll}
+              className="text-xs font-medium text-primary hover:underline"
+            >
+              Reset filters
+            </button>
+          )}
         </div>
       ) : (
         <motion.div layout className="space-y-2">
@@ -240,7 +302,7 @@ export default function Activity() {
         </motion.div>
       )}
 
-      {/* Detail sheet */}
+      {/* Detail */}
       <TransactionDetailSheet
         txn={selected}
         onClose={() => setSelected(null)}
@@ -252,7 +314,7 @@ export default function Activity() {
         onToggleSettle={selected?.lending_details ? toggleSettle : undefined}
       />
 
-      {/* Add sheet */}
+      {/* Add */}
       <SheetBody open={addOpen} onOpenChange={setAddOpen} title="New transaction">
         <TransactionForm
           submitLabel="Add"
@@ -269,7 +331,7 @@ export default function Activity() {
         />
       </SheetBody>
 
-      {/* Edit sheet */}
+      {/* Edit */}
       <SheetBody
         open={!!editing}
         onOpenChange={(o) => !o && setEditing(null)}
@@ -311,48 +373,83 @@ export default function Activity() {
         )}
       </SheetBody>
 
-      {/* Quick group creation */}
+      {/* Date range */}
+      <DateRangeSheet
+        open={dateOpen}
+        onOpenChange={setDateOpen}
+        value={range}
+        onChange={setRange}
+      />
+
+      {/* Filters */}
+      <FiltersSheet
+        open={filtersOpen}
+        onOpenChange={setFiltersOpen}
+        filter={filter}
+        setFilter={setFilter}
+        groupFilter={groupFilter}
+        setGroupFilter={setGroupFilter}
+        categoryFilter={categoryFilter}
+        setCategoryFilter={setCategoryFilter}
+        search={search}
+        setSearch={setSearch}
+        groups={groups}
+        categories={categories}
+        onNewGroup={() => {
+          setFiltersOpen(false);
+          setNewGroupOpen(true);
+        }}
+        onClearAll={() => {
+          setFilter('all');
+          setGroupFilter('all');
+          setCategoryFilter('all');
+          setSearch('');
+        }}
+      />
+
+      {/* Quick new group */}
       <QuickGroupSheet
         open={newGroupOpen}
         onOpenChange={setNewGroupOpen}
-        onCreated={(id) => setGroupFilter(id)}
+        onCreated={(id) => {
+          setGroupFilter(id);
+          setFiltersOpen(true);
+        }}
       />
     </div>
   );
 }
 
-function ChipRow({ children }: { children: React.ReactNode }) {
-  return <div className="flex flex-wrap gap-2">{children}</div>;
-}
-
-function Chip({
-  active,
+function FilterPill({
+  icon,
+  label,
   onClick,
-  color,
-  children,
+  badge,
+  primary,
 }: {
-  active: boolean;
+  icon: React.ReactNode;
+  label: string;
   onClick: () => void;
-  color?: string | null;
-  children: React.ReactNode;
+  badge?: number;
+  primary?: boolean;
 }) {
-  const tint = color ?? '#6366f1';
   return (
     <button
       onClick={onClick}
       className={cn(
-        'flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors',
-        active
-          ? 'border-transparent text-white shadow-sm'
-          : 'border-border bg-card text-muted-foreground hover:bg-accent',
+        'flex items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-medium transition-colors',
+        primary
+          ? 'border-primary/30 bg-primary/[0.06] text-foreground hover:bg-primary/10'
+          : 'border-border bg-card text-foreground hover:bg-accent',
       )}
-      style={
-        active
-          ? { backgroundColor: tint, borderColor: tint, color: 'white' }
-          : undefined
-      }
     >
-      {children}
+      {icon}
+      {label}
+      {!!badge && badge > 0 && (
+        <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold text-primary-foreground">
+          {badge}
+        </span>
+      )}
     </button>
   );
 }

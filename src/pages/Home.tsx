@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
-import { startOfDay, format } from 'date-fns';
+import { format } from 'date-fns';
 import {
   ArrowDownLeft,
   ArrowRight,
@@ -19,8 +19,10 @@ import { TransactionRow } from '@/components/TransactionRow';
 import { TransactionDetailSheet } from '@/components/TransactionDetailSheet';
 import { SheetBody } from '@/components/ui/sheet';
 import { TransactionForm } from '@/components/TransactionForm';
+import { BulkConfirmSheet } from '@/components/BulkConfirmSheet';
 import type { TransactionWithRelations } from '@/hooks/useTransactions';
 import { useUpdateTransaction } from '@/hooks/useTransactions';
+import { parseMulti } from '@/services/parser';
 import { useCategories } from '@/hooks/useCategories';
 import { useGroups } from '@/hooks/useGroups';
 import { useProfile } from '@/hooks/useProfile';
@@ -33,7 +35,6 @@ import {
   type TransactionInput,
 } from '@/hooks/useTransactions';
 import {
-  parseTransaction,
   PARSE_CONFIDENCE_THRESHOLD,
   type ParsedTransaction,
 } from '@/services/parser';
@@ -56,37 +57,10 @@ export default function Home() {
   const [parsing, setParsing] = useState(false);
   const [pending, setPending] = useState<ParsedTransaction | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [bulk, setBulk] = useState<{ items: ParsedTransaction[]; raw: string } | null>(null);
   const [lastOK, setLastOK] = useState<string | null>(null);
   const [selected, setSelected] = useState<TransactionWithRelations | null>(null);
   const [editing, setEditing] = useState<TransactionWithRelations | null>(null);
-
-  const today = startOfDay(new Date()).toISOString();
-  const todayTxns = useMemo(
-    () => txns.filter((t) => t.occurred_at >= today),
-    [txns, today],
-  );
-
-  const todaySpent = useMemo(
-    () =>
-      todayTxns
-        .filter((t) => t.type === 'expense')
-        .reduce((acc, t) => acc + Number(t.amount), 0),
-    [todayTxns],
-  );
-  const todayIncome = useMemo(
-    () =>
-      todayTxns
-        .filter((t) => t.type === 'income')
-        .reduce((acc, t) => acc + Number(t.amount), 0),
-    [todayTxns],
-  );
-  const todayInvested = useMemo(
-    () =>
-      todayTxns
-        .filter((t) => t.type === 'investment')
-        .reduce((acc, t) => acc + Number(t.amount), 0),
-    [todayTxns],
-  );
 
   const lendingStats = useMemo(() => {
     let lent = 0;
@@ -110,7 +84,7 @@ export default function Home() {
     [budgets, txns, cats, groups],
   );
 
-  const recent = useMemo(() => txns.slice(0, 5), [txns]);
+  const recent = useMemo(() => txns.slice(0, 10), [txns]);
 
   async function handleQuickSubmit(text: string) {
     if (!profile) {
@@ -119,17 +93,26 @@ export default function Home() {
     }
     setParsing(true);
     try {
-      const parsed = await parseTransaction(text, {
+      const items = await parseMulti(text, {
         categories: cats,
         groups,
         defaultGroupId: profile.default_group_id,
         now: new Date(),
         timezone: profile.timezone,
       });
-      if (!parsed) {
-        toast.error("Couldn't detect an amount — try 'rice 400'");
+      if (items.length === 0) {
+        toast.error("Couldn't detect a transaction. Try 'rice 400'");
         return;
       }
+
+      // Multiple → review sheet
+      if (items.length > 1) {
+        setBulk({ items, raw: text });
+        return;
+      }
+
+      // Single → existing single-confirm flow
+      const parsed = items[0];
       if (parsed.confidence >= PARSE_CONFIDENCE_THRESHOLD) {
         const input = buildInput(parsed);
         await create.mutateAsync(input);
@@ -147,6 +130,25 @@ export default function Home() {
     } finally {
       setParsing(false);
     }
+  }
+
+  async function commitBulk(inputs: import('@/hooks/useTransactions').TransactionInput[]) {
+    let added = 0;
+    for (const input of inputs) {
+      try {
+        await create.mutateAsync(input);
+        added++;
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn('[bulk] insert failed', err);
+      }
+    }
+    if (added === inputs.length) {
+      toast.success(`Added ${added} transaction${added === 1 ? '' : 's'}`);
+    } else {
+      toast.error(`Added ${added} of ${inputs.length} — ${inputs.length - added} failed`);
+    }
+    setBulk(null);
   }
 
   async function handleDelete(t: TransactionWithRelations) {
@@ -202,13 +204,6 @@ export default function Home() {
           Try: "rice 400", "SIP 10000", "lent Ravi 2000 office".
         </p>
       </section>
-
-      {/* Today snapshot */}
-      <div className="grid grid-cols-3 gap-3">
-        <StatCard label="Spent" value={todaySpent} color="hsl(var(--destructive))" />
-        <StatCard label="Income" value={todayIncome} color="hsl(var(--success))" />
-        <StatCard label="Invested" value={todayInvested} color={TYPE_META.investment.color} />
-      </div>
 
       {/* Lending widget */}
       {(lendingStats.lent > 0 || lendingStats.borrowed > 0) && (
@@ -293,18 +288,26 @@ export default function Home() {
             Nothing yet. Try "coffee 150" above.
           </div>
         ) : (
-          <motion.div layout className="space-y-2">
-            {recent.map((t) => (
-              <motion.div
-                key={t.id}
-                layout
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-              >
-                <TransactionRow txn={t} onOpen={setSelected} />
-              </motion.div>
-            ))}
-          </motion.div>
+          <>
+            <motion.div layout className="space-y-2">
+              {recent.map((t) => (
+                <motion.div
+                  key={t.id}
+                  layout
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                >
+                  <TransactionRow txn={t} onOpen={setSelected} />
+                </motion.div>
+              ))}
+            </motion.div>
+            <Link
+              to="/activity"
+              className="mt-3 flex items-center justify-center gap-1.5 rounded-xl border border-dashed py-3 text-sm font-medium text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+            >
+              See all transactions <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </>
         )}
       </section>
 
@@ -360,6 +363,16 @@ export default function Home() {
         )}
       </SheetBody>
 
+      <BulkConfirmSheet
+        parsed={bulk?.items ?? []}
+        rawInput={bulk?.raw ?? ''}
+        open={!!bulk}
+        onOpenChange={(o) => {
+          if (!o) setBulk(null);
+        }}
+        onConfirm={commitBulk}
+      />
+
       <ParseConfirmDialog
         parsed={pending}
         open={confirmOpen}
@@ -383,24 +396,6 @@ export default function Home() {
         }}
       />
     </div>
-  );
-}
-
-function StatCard({ label, value, color }: { label: string; value: number; color: string }) {
-  return (
-    <Card>
-      <CardContent className="space-y-0.5 p-3">
-        <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-          {label}
-        </div>
-        <div
-          className="truncate text-lg font-semibold tabular-nums"
-          style={{ color: value > 0 ? color : undefined }}
-        >
-          {formatINR(value)}
-        </div>
-      </CardContent>
-    </Card>
   );
 }
 

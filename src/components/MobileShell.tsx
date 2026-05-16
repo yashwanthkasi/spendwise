@@ -7,7 +7,7 @@ import {
   Zap,
   ListOrdered,
   PieChart,
-  Repeat,
+  Target,
   Settings as SettingsIcon,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
@@ -25,7 +25,7 @@ const NAV: NavItem[] = [
   { to: '/', label: 'Home', icon: Zap, end: true },
   { to: '/activity', label: 'Activity', icon: ListOrdered },
   { to: '/insights', label: 'Insights', icon: PieChart },
-  { to: '/automate', label: 'Automate', icon: Repeat },
+  { to: '/budgets', label: 'Budgets', icon: Target },
   { to: '/settings', label: 'Settings', icon: SettingsIcon },
 ];
 

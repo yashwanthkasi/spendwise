@@ -6,7 +6,7 @@ import { AuthProvider } from '@/hooks/useAuth';
 import Home from '@/pages/Home';
 import Activity from '@/pages/Activity';
 import Insights from '@/pages/Insights';
-import Automate from '@/pages/Automate';
+import Budgets from '@/pages/Budgets';
 import Settings from '@/pages/Settings';
 import Login from '@/pages/Login';
 import Signup from '@/pages/Signup';
@@ -28,15 +28,15 @@ export default function App() {
             <Route path="/" element={<Home />} />
             <Route path="/activity" element={<Activity />} />
             <Route path="/insights" element={<Insights />} />
-            <Route path="/automate" element={<Automate />} />
+            <Route path="/budgets" element={<Budgets />} />
             <Route path="/settings" element={<Settings />} />
             {/* Legacy paths → merged destinations */}
             <Route path="/transactions" element={<Navigate to="/activity" replace />} />
             <Route path="/dashboard" element={<Navigate to="/insights" replace />} />
-            <Route path="/budgets" element={<Navigate to="/insights" replace />} />
             <Route path="/lending" element={<Navigate to="/activity?filter=lending" replace />} />
-            <Route path="/recurring" element={<Navigate to="/automate" replace />} />
-            <Route path="/import" element={<Navigate to="/automate?tab=import" replace />} />
+            <Route path="/automate" element={<Navigate to="/settings#automation" replace />} />
+            <Route path="/recurring" element={<Navigate to="/settings#automation" replace />} />
+            <Route path="/import" element={<Navigate to="/settings#automation" replace />} />
             <Route path="/groups" element={<Navigate to="/settings#groups" replace />} />
             <Route path="/categories" element={<Navigate to="/settings#categories" replace />} />
           </Route>

@@ -59,6 +59,35 @@ export function buildSystemPrompt(ctx: ParseContext): string {
   ].join('\n');
 }
 
+export function buildMultiSystemPrompt(ctx: ParseContext): string {
+  const base = buildSystemPrompt(ctx);
+  return (
+    base +
+    '\n\n' +
+    [
+      '— MULTI MODE —',
+      'The user may describe MULTIPLE transactions in one message, separated by commas, semicolons, "and", or newlines.',
+      'Different items may have different types: an income and an expense in the same message is normal.',
+      'Always respond as: {"items": [<single-tx schema>, ...]}.',
+      'For each item include a "raw" field with the exact fragment of the input it came from.',
+      'If the input is just one transaction, return an array of length 1.',
+      'Be careful with commas inside numbers — "10,000" is a single amount, not two transactions.',
+      '',
+      'Examples:',
+      'IN: gobi 40, shopping 400 and woodwork 70 home',
+      'OUT: {"items":[{"type":"expense","amount":40,"category":"Groceries","group":null,"note":"gobi","raw":"gobi 40","occurred_at_hint":null,"lending":null,"confidence":0.85,"reasoning":"gobi → Groceries"},{"type":"expense","amount":400,"category":"Shopping","group":null,"note":"shopping","raw":"shopping 400","occurred_at_hint":null,"lending":null,"confidence":0.9,"reasoning":"explicit"},{"type":"expense","amount":70,"category":"Shopping","group":"Home","note":"woodwork","raw":"woodwork 70 home","occurred_at_hint":null,"lending":null,"confidence":0.7,"reasoning":"woodwork → Shopping; group Home"}]}',
+      '',
+      'IN: salary 95k and rent 20k',
+      'OUT: {"items":[{"type":"income","amount":95000,"category":"Salary","group":null,"note":"salary","raw":"salary 95k","occurred_at_hint":null,"lending":null,"confidence":0.95,"reasoning":"salary → Income/Salary"},{"type":"expense","amount":20000,"category":"Rent","group":null,"note":"rent","raw":"rent 20k","occurred_at_hint":null,"lending":null,"confidence":0.95,"reasoning":"rent → Expense/Rent"}]}',
+      '',
+      'IN: rice 400',
+      'OUT: {"items":[{"type":"expense","amount":400,"category":"Food","group":null,"note":"rice","raw":"rice 400","occurred_at_hint":null,"lending":null,"confidence":0.9,"reasoning":"rice → Food"}]}',
+      '',
+      'Output ONLY the JSON object. No prose, no markdown fences.',
+    ].join('\n')
+  );
+}
+
 export function resolveOccurredAt(hint: string | null, now: Date): string {
   if (!hint) return now.toISOString();
   const h = hint.toLowerCase();

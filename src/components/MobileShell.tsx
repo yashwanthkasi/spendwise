@@ -13,6 +13,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import { runDueRecurring } from '@/services/recurring';
+import { PermissionBanner } from '@/components/PermissionBanner';
 
 type NavItem = {
   to: string;
@@ -93,6 +94,11 @@ export function MobileShell() {
         }}
       >
         <div className="md:pb-0" style={{ paddingBottom: 0 }}>
+          {/* Mounted once (outside the keyed route container) so it prompts a
+              single time and persists across navigation. */}
+          <div className="mx-auto w-full max-w-3xl px-4 pt-4 md:px-8 md:pt-5 empty:hidden">
+            <PermissionBanner />
+          </div>
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}

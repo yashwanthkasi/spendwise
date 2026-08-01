@@ -32,6 +32,7 @@ interface StructuredStats {
   by_type: Record<string, { count: number; amount: number }>;
   top_categories: CategoryStat[];
   top_groups: CategoryStat[];
+  top_locations: CategoryStat[];
   // ── habit signals ──
   habits: {
     eating_out: { count: number; amount: number; avg_ticket: number } | null;
@@ -220,6 +221,27 @@ function aggregateGroups(
     .slice(0, topN);
 }
 
+function aggregateLocations(
+  txns: TransactionWithRelations[],
+  topN = 5,
+): CategoryStat[] {
+  const map = new Map<string, CategoryStat>();
+  for (const t of txns) {
+    if (t.type !== 'expense' || !t.place_label) continue;
+    const name = t.place_label.trim();
+    if (!name) continue;
+    const k = name.toLowerCase();
+    const e = map.get(k) ?? { name, amount: 0, count: 0 };
+    e.amount += Number(t.amount);
+    e.count += 1;
+    map.set(k, e);
+  }
+  return Array.from(map.values())
+    .map((l) => ({ ...l, amount: Math.round(l.amount) }))
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, topN);
+}
+
 function buildStats(input: InsightInput): StructuredStats {
   const { txns, previousTxns } = input;
   const byType: Record<string, { count: number; amount: number }> = {};
@@ -263,6 +285,7 @@ function buildStats(input: InsightInput): StructuredStats {
     ),
     top_categories: aggregateCategories(txns),
     top_groups: aggregateGroups(txns),
+    top_locations: aggregateLocations(txns),
     habits: {
       eating_out: summarizeCategory(txns, 'Eating Out'),
       coffee_cafe: detectCoffeeHabit(txns),
@@ -320,6 +343,7 @@ const SYSTEM = [
   '   - frequent_merchants array: call out by name ("Zomato shows up 9 times")',
   '   - largest_txn outlier',
   '   - subscriptions if present',
+  '   - top_locations: call out WHERE money went by place ("₹2,300 around Indiranagar") when present',
   '3. OPTIONALLY one sentence with a concrete observation or tiny nudge — never preachy.',
   '',
   'Rules:',

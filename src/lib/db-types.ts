@@ -66,6 +66,9 @@ export type Transaction = {
   note: string | null;
   raw_input: string | null;
   source: TransactionSource;
+  latitude: number | null;
+  longitude: number | null;
+  place_label: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -174,6 +177,9 @@ export type Database = {
           note?: string | null;
           raw_input?: string | null;
           source?: TransactionSource;
+          latitude?: number | null;
+          longitude?: number | null;
+          place_label?: string | null;
           created_at?: string;
           updated_at?: string;
         };

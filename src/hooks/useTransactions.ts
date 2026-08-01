@@ -80,6 +80,9 @@ export interface TransactionInput {
   note: string | null;
   raw_input?: string | null;
   source?: TransactionSource;
+  latitude?: number | null;
+  longitude?: number | null;
+  place_label?: string | null;
   lending?: {
     counterparty: string;
     direction: 'lent' | 'borrowed';
@@ -107,6 +110,9 @@ export function useCreateTransaction() {
           note: input.note,
           raw_input: input.raw_input ?? null,
           source: input.source ?? 'manual',
+          latitude: input.latitude ?? null,
+          longitude: input.longitude ?? null,
+          place_label: input.place_label ?? null,
         })
         .select()
         .single();

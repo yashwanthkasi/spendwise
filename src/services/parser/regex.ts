@@ -1,5 +1,6 @@
 import type { TransactionType } from '@/lib/db-types';
 import type { ParseContext, ParsedTransaction } from './types';
+import { applyCanonical } from './normalize';
 
 interface Rule {
   type: TransactionType;
@@ -161,7 +162,7 @@ export function parseWithRegex(
   const group = pickGroup(ctx, trimmed);
   const cat = pickCategory(ctx, matchedType, matchedCategory);
 
-  return {
+  const parsed: ParsedTransaction = {
     type: matchedType,
     amount,
     categoryId: cat.id,
@@ -176,4 +177,7 @@ export function parseWithRegex(
     rawInput: trimmed,
     reasoning: matched ? 'keyword match' : 'amount only — category is a guess',
   };
+
+  // Pin fuel/ride keywords to a single canonical category for consistency.
+  return applyCanonical(parsed, ctx.categories);
 }

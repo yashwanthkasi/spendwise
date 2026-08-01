@@ -27,6 +27,7 @@ import { RankedList, type RankedItem } from '@/components/insights/RankedList';
 import { useTransactions } from '@/hooks/useTransactions';
 import { TYPE_META } from '@/lib/constants';
 import { formatINR } from '@/lib/utils';
+import { displayPlace } from '@/services/location';
 import type { TransactionType } from '@/lib/db-types';
 
 export default function Insights() {
@@ -156,6 +157,30 @@ export default function Insights() {
     return Array.from(map.values()).sort((a, b) => b.amount - a.amount);
   }, [thisMonthTxns]);
 
+  const locationItems = useMemo<RankedItem[]>(() => {
+    const map = new Map<string, RankedItem>();
+    for (const t of thisMonthTxns) {
+      if (t.type !== 'expense') continue;
+      const label = displayPlace(t) ?? 'No location';
+      const key = label.toLowerCase();
+      const ex = map.get(key);
+      if (ex) {
+        ex.amount += Number(t.amount);
+        ex.count += 1;
+      } else {
+        map.set(key, {
+          id: key,
+          name: label,
+          emoji: '📍',
+          color: label === 'No location' ? '#94a3b8' : '#6366f1',
+          amount: Number(t.amount),
+          count: 1,
+        });
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => b.amount - a.amount);
+  }, [thisMonthTxns]);
+
   const groupItems = useMemo<RankedItem[]>(() => {
     const map = new Map<string, RankedItem>();
     for (const t of thisMonthTxns) {
@@ -245,6 +270,13 @@ export default function Insights() {
         title="Expenses by category"
         items={categoryItems}
         emptyText="No expenses this month yet."
+      />
+
+      {/* Location list — where the money went */}
+      <RankedList
+        title="Spend by location"
+        items={locationItems}
+        emptyText="No expenses to place this month."
       />
 
       {/* Group list — sorted desc, scrollable */}

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
@@ -8,14 +8,13 @@ import {
   ArrowRight,
   ArrowUpRight,
   Check,
-  Sparkles,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { PageHeader } from '@/components/PageHeader';
 import { QuickAddBar } from '@/components/QuickAddBar';
 import { ParseConfirmDialog } from '@/components/ParseConfirmDialog';
-import { TransactionRow } from '@/components/TransactionRow';
+import { TransactionList } from '@/components/TransactionList';
 import { TransactionDetailSheet } from '@/components/TransactionDetailSheet';
 import { SheetBody } from '@/components/ui/sheet';
 import { TransactionForm } from '@/components/TransactionForm';
@@ -23,6 +22,8 @@ import { BulkConfirmSheet } from '@/components/BulkConfirmSheet';
 import type { TransactionWithRelations } from '@/hooks/useTransactions';
 import { useUpdateTransaction } from '@/hooks/useTransactions';
 import { parseMulti } from '@/services/parser';
+import { getCurrentPlace, primeLocation, type Place } from '@/services/location';
+import type { QuickAddSource } from '@/components/QuickAddBar';
 import { useCategories } from '@/hooks/useCategories';
 import { useGroups } from '@/hooks/useGroups';
 import { useProfile } from '@/hooks/useProfile';
@@ -58,6 +59,11 @@ export default function Home() {
   const [pending, setPending] = useState<ParsedTransaction | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [bulk, setBulk] = useState<{ items: ParsedTransaction[]; raw: string } | null>(null);
+  // Location + source captured at submit time; reused by whichever confirm path fires.
+  const [meta, setMeta] = useState<{ place: Place | null; source: QuickAddSource }>({
+    place: null,
+    source: 'text_nl',
+  });
   const [lastOK, setLastOK] = useState<string | null>(null);
   const [selected, setSelected] = useState<TransactionWithRelations | null>(null);
   const [editing, setEditing] = useState<TransactionWithRelations | null>(null);
@@ -86,20 +92,32 @@ export default function Home() {
 
   const recent = useMemo(() => txns.slice(0, 10), [txns]);
 
-  async function handleQuickSubmit(text: string) {
+  // Warm the location cache as soon as Home opens so the first add is fast.
+  useEffect(() => {
+    primeLocation();
+  }, []);
+
+  async function handleQuickSubmit(text: string, source: QuickAddSource = 'text_nl') {
     if (!profile) {
       toast.error('Profile not ready');
       return;
     }
     setParsing(true);
     try {
-      const items = await parseMulti(text, {
-        categories: cats,
-        groups,
-        defaultGroupId: profile.default_group_id,
-        now: new Date(),
-        timezone: profile.timezone,
-      });
+      // Grab the current place and parse the phrase in parallel.
+      const [place, items] = await Promise.all([
+        getCurrentPlace(),
+        parseMulti(text, {
+          categories: cats,
+          groups,
+          defaultGroupId: profile.default_group_id,
+          now: new Date(),
+          timezone: profile.timezone,
+        }),
+      ]);
+      const submitMeta = { place, source };
+      setMeta(submitMeta);
+
       if (items.length === 0) {
         toast.error("Couldn't detect a transaction. Try 'rice 400'");
         return;
@@ -114,13 +132,16 @@ export default function Home() {
       // Single → existing single-confirm flow
       const parsed = items[0];
       if (parsed.confidence >= PARSE_CONFIDENCE_THRESHOLD) {
-        const input = buildInput(parsed);
+        const input = buildInput(parsed, submitMeta);
         await create.mutateAsync(input);
         logParse.mutate({ parsed, accepted: true, final: input });
-        const label = `${TYPE_META[parsed.type].emoji} ${parsed.categoryName ?? parsed.type} · ${formatINR(parsed.amount)}`;
+        const noteLabel =
+          parsed.note?.trim() || parsed.categoryName || TYPE_META[parsed.type].label;
+        const placeLabel = submitMeta.place?.label;
+        const label = `${TYPE_META[parsed.type].emoji} ${noteLabel} · ${formatINR(parsed.amount)}${placeLabel ? ` · 📍 ${placeLabel}` : ''}`;
         setLastOK(label);
         toast.success(label);
-        setTimeout(() => setLastOK(null), 2000);
+        setTimeout(() => setLastOK(null), 2600);
       } else {
         setPending(parsed);
         setConfirmOpen(true);
@@ -134,7 +155,14 @@ export default function Home() {
 
   async function commitBulk(inputs: import('@/hooks/useTransactions').TransactionInput[]) {
     let added = 0;
-    for (const input of inputs) {
+    for (const raw of inputs) {
+      const input = {
+        ...raw,
+        source: meta.source,
+        latitude: meta.place?.latitude ?? null,
+        longitude: meta.place?.longitude ?? null,
+        place_label: meta.place?.label ?? null,
+      };
       try {
         await create.mutateAsync(input);
         added++;
@@ -185,7 +213,7 @@ export default function Home() {
         subtitle={format(new Date(), 'EEEE, d MMMM')}
       />
 
-      <section className="space-y-2">
+      <section className="space-y-3">
         <QuickAddBar onSubmit={handleQuickSubmit} loading={parsing} />
         <AnimatePresence>
           {lastOK && (
@@ -193,16 +221,12 @@ export default function Home() {
               initial={{ opacity: 0, y: -4 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
-              className="flex items-center gap-2 rounded-lg bg-success/10 px-3 py-2 text-sm text-[hsl(var(--success))]"
+              className="flex items-center justify-center gap-2 rounded-xl bg-success/10 px-3 py-2.5 text-sm font-medium text-[hsl(var(--success))]"
             >
-              <Check className="h-4 w-4" /> Added — {lastOK}
+              <Check className="h-4 w-4 shrink-0" /> Added — {lastOK}
             </motion.div>
           )}
         </AnimatePresence>
-        <p className="pl-1 text-xs text-muted-foreground">
-          <Sparkles className="mr-1 inline h-3 w-3" />
-          Try: "rice 400", "SIP 10000", "lent Ravi 2000 office".
-        </p>
       </section>
 
       {/* Lending widget */}
@@ -289,18 +313,7 @@ export default function Home() {
           </div>
         ) : (
           <>
-            <motion.div layout className="space-y-2">
-              {recent.map((t) => (
-                <motion.div
-                  key={t.id}
-                  layout
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                >
-                  <TransactionRow txn={t} onOpen={setSelected} />
-                </motion.div>
-              ))}
-            </motion.div>
+            <TransactionList txns={recent} onOpen={setSelected} />
             <Link
               to="/activity"
               className="mt-3 flex items-center justify-center gap-1.5 rounded-xl border border-dashed py-3 text-sm font-medium text-muted-foreground transition-colors hover:border-primary hover:text-primary"
@@ -385,8 +398,16 @@ export default function Home() {
         }}
         onConfirm={async (input) => {
           try {
-            await create.mutateAsync(input);
-            if (pending) logParse.mutate({ parsed: pending, accepted: true, final: input });
+            const withPlace = {
+              ...input,
+              source: meta.source,
+              latitude: meta.place?.latitude ?? null,
+              longitude: meta.place?.longitude ?? null,
+              place_label: meta.place?.label ?? null,
+            };
+            await create.mutateAsync(withPlace);
+            if (pending)
+              logParse.mutate({ parsed: pending, accepted: true, final: withPlace });
             toast.success('Added');
             setConfirmOpen(false);
             setPending(null);
@@ -399,7 +420,10 @@ export default function Home() {
   );
 }
 
-function buildInput(parsed: ParsedTransaction): TransactionInput {
+function buildInput(
+  parsed: ParsedTransaction,
+  meta: { place: Place | null; source: QuickAddSource },
+): TransactionInput {
   return {
     amount: parsed.amount,
     type: parsed.type,
@@ -408,7 +432,10 @@ function buildInput(parsed: ParsedTransaction): TransactionInput {
     occurred_at: parsed.occurredAt,
     note: parsed.note,
     raw_input: parsed.rawInput,
-    source: 'text_nl',
+    source: meta.source,
+    latitude: meta.place?.latitude ?? null,
+    longitude: meta.place?.longitude ?? null,
+    place_label: meta.place?.label ?? null,
     lending: parsed.lending
       ? {
           counterparty: parsed.lending.counterparty,

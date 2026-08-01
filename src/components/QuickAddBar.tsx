@@ -4,8 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { MicButton } from '@/components/MicButton';
 
+export type QuickAddSource = 'text_nl' | 'voice_nl';
+
 const MIN_HEIGHT = 44;
-const MAX_HEIGHT = 168;
+const MAX_HEIGHT = 140;
 
 const isHoverDevice =
   typeof window !== 'undefined' &&
@@ -16,7 +18,7 @@ export function QuickAddBar({
   disabled,
   loading,
 }: {
-  onSubmit: (text: string) => void;
+  onSubmit: (text: string, source: QuickAddSource) => void;
   disabled?: boolean;
   loading?: boolean;
 }) {
@@ -35,7 +37,7 @@ export function QuickAddBar({
     e?.preventDefault();
     const v = text.trim();
     if (!v) return;
-    onSubmit(v);
+    onSubmit(v, 'text_nl');
     setText('');
   }
 
@@ -49,15 +51,29 @@ export function QuickAddBar({
     }
   }
 
-  const lineCount = (text.match(/\n/g)?.length ?? 0) + 1;
-
   return (
-    <form
-      onSubmit={submit}
-      className="rounded-2xl border bg-card p-2 shadow-sm transition-shadow focus-within:ring-2 focus-within:ring-ring"
-    >
-      <div className="flex items-start gap-2">
-        <Sparkles className="ml-1.5 mt-2.5 h-5 w-5 shrink-0 text-muted-foreground" />
+    <div className="rounded-3xl border bg-card p-5 shadow-sm">
+      {/* Voice-first hero */}
+      <MicButton
+        variant="hero"
+        onTranscript={(t) => {
+          if (t.trim()) onSubmit(t.trim(), 'voice_nl');
+        }}
+        disabled={disabled || loading}
+      />
+
+      {/* Divider */}
+      <div className="my-4 flex items-center gap-3 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        <span className="h-px flex-1 bg-border" />
+        or type
+        <span className="h-px flex-1 bg-border" />
+      </div>
+
+      {/* Text fallback */}
+      <form
+        onSubmit={submit}
+        className="flex items-end gap-2 rounded-2xl border bg-background p-2 transition-shadow focus-within:ring-2 focus-within:ring-ring"
+      >
         <Textarea
           ref={taRef}
           rows={1}
@@ -65,44 +81,29 @@ export function QuickAddBar({
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKey}
           disabled={disabled || loading}
-          autoFocus
-          placeholder="rice 400 — or many at once: gobi 40, salary 95k, lent Ravi 2000"
-          className="min-h-0 resize-none border-0 bg-transparent px-1 py-2 text-base leading-snug shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+          placeholder="panipuri 40 — or many at once: gobi 40, salary 95k"
+          className="min-h-0 resize-none border-0 bg-transparent px-1.5 py-2 text-base leading-snug shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
           style={{ height: MIN_HEIGHT }}
         />
-      </div>
-      <div className="flex items-center justify-between gap-2 pl-1 pr-1 pt-1">
-        <p className="text-[11px] text-muted-foreground">
-          {isHoverDevice ? (
-            <>
-              <CornerDownLeft className="inline h-3 w-3" /> to add,{' '}
-              <kbd className="rounded bg-muted px-1 text-[10px]">Shift+Enter</kbd>{' '}
-              for newline
-            </>
-          ) : (
-            <>List many with commas or new lines</>
-          )}
-          {lineCount > 1 && (
-            <span className="ml-2 text-primary">· {lineCount} lines</span>
-          )}
-        </p>
-        <div className="flex items-center gap-1">
-          <MicButton
-            onTranscript={(t) => {
-              setText(t);
-              if (t.trim()) onSubmit(t.trim());
-            }}
-            disabled={disabled || loading}
-          />
-          <Button
-            type="submit"
-            disabled={!text.trim() || disabled || loading}
-            size="sm"
-          >
-            {loading ? 'Parsing…' : 'Add'}
-          </Button>
-        </div>
-      </div>
-    </form>
+        <Button
+          type="submit"
+          disabled={!text.trim() || disabled || loading}
+          size="sm"
+          className="shrink-0"
+        >
+          {loading ? 'Adding…' : 'Add'}
+        </Button>
+      </form>
+
+      <p className="mt-3 text-center text-xs text-muted-foreground">
+        <Sparkles className="mr-1 inline h-3 w-3" />
+        Auto-detects amount, category &amp; your location.
+        {isHoverDevice && (
+          <span className="ml-1">
+            <CornerDownLeft className="inline h-3 w-3" /> to add.
+          </span>
+        )}
+      </p>
+    </div>
   );
 }

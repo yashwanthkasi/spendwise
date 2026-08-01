@@ -191,20 +191,20 @@ export function BulkConfirmSheet({
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             <TypePill type={it.type} />
-                            <span className="truncate text-sm font-medium">
-                              {it.categoryName ?? 'Uncategorized'}
+                            <span className="truncate text-sm font-medium first-letter:uppercase">
+                              {it.note?.trim() || it.categoryName || 'Uncategorized'}
                             </span>
-                            {it.groupName && (
-                              <span className="truncate text-xs text-muted-foreground">
-                                · {it.groupName}
-                              </span>
-                            )}
                             <span className="ml-auto shrink-0 text-sm font-semibold tabular-nums">
                               {formatINR(Number(it.amount))}
                             </span>
                           </div>
                           <div className="mt-0.5 truncate text-xs text-muted-foreground">
-                            <span className="italic">“{it.rawInput}”</span>
+                            {it.categoryName && (
+                              <span className="rounded bg-muted px-1.5 py-0.5 font-medium text-foreground/70">
+                                {it.categoryName}
+                              </span>
+                            )}
+                            {it.groupName && <span> · {it.groupName}</span>}
                             {low && (
                               <span className="ml-1 text-amber-600">
                                 · low confidence

@@ -1,10 +1,11 @@
 import { format } from 'date-fns';
-import { Check, Pencil, Trash2, Undo2 } from 'lucide-react';
+import { Check, MapPin, Pencil, Trash2, Undo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SheetBody } from '@/components/ui/sheet';
 import { TypePill } from '@/components/TypePill';
 import type { TransactionWithRelations } from '@/hooks/useTransactions';
 import { TYPE_META } from '@/lib/constants';
+import { displayPlace } from '@/services/location';
 import { formatINR } from '@/lib/utils';
 
 export function TransactionDetailSheet({
@@ -22,6 +23,7 @@ export function TransactionDetailSheet({
 }) {
   const sign = txn ? TYPE_META[txn.type].signHint : 'neutral';
   const prefix = sign === 'debit' ? '−' : sign === 'credit' ? '+' : '';
+  const placeLabel = txn ? displayPlace(txn) : null;
 
   return (
     <SheetBody
@@ -63,6 +65,17 @@ export function TransactionDetailSheet({
               label="When"
               value={format(new Date(txn.occurred_at), 'EEE, d MMM yyyy · h:mm a')}
             />
+            {placeLabel && (
+              <MetaRow
+                label="Place"
+                value={
+                  <span className="inline-flex items-center gap-1">
+                    <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                    {placeLabel}
+                  </span>
+                }
+              />
+            )}
             {txn.note && <MetaRow label="Note" value={txn.note} />}
             {txn.raw_input && txn.raw_input !== txn.note && (
               <MetaRow

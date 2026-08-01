@@ -2,6 +2,7 @@ import { callGeminiJSON, isGeminiEnabled } from '@/lib/gemini';
 import { getGroq, getGroqModel } from '@/lib/groq';
 import { buildMultiSystemPrompt, resolveOccurredAt } from './prompt';
 import { parseWithRegex } from './regex';
+import { applyCanonical } from './normalize';
 import type { ParseContext, ParsedTransaction } from './types';
 import type { LendingDirection, TransactionType } from '@/lib/db-types';
 
@@ -95,7 +96,7 @@ function mapItem(
     ctx.groups.find((g) => g.id === ctx.defaultGroupId)?.name ??
     null;
 
-  return {
+  const parsed: ParsedTransaction = {
     type,
     amount: item.amount,
     categoryId: categoryMatch?.id ?? null,
@@ -116,6 +117,9 @@ function mapItem(
     rawInput: raw,
     reasoning: item.reasoning,
   };
+
+  // Pin fuel/ride keywords to a single canonical category for consistency.
+  return applyCanonical(parsed, ctx.categories);
 }
 
 /**

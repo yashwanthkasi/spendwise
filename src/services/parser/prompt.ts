@@ -28,6 +28,10 @@ export function buildSystemPrompt(ctx: ParseContext): string {
       ([type, names]) => `  ${type}: ${names.join(', ')}`,
     ),
     '',
+    'Category disambiguation (BE CONSISTENT — the same word must always map to the same category):',
+    '- Buying fuel for a vehicle — "petrol", "diesel", "CNG", "fuel", "gas station", filling the tank → Fuel (NEVER Transport).',
+    '- Paying for a ride or commute — "uber", "ola", "rapido", "cab", "taxi", "auto", "rickshaw", "metro", "bus", "train", "ride" → Transport (NEVER Fuel).',
+    '',
     `Allowed \`group\` values (or null): ${groupList.join(', ') || '(none)'}.`,
     defaultGroup
       ? `If no group is implied, use null and the app will default to "${defaultGroup}".`

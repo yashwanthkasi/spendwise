@@ -1,6 +1,7 @@
 import { callGeminiJSON, isGeminiEnabled } from '@/lib/gemini';
 import { getGroq, getGroqModel } from '@/lib/groq';
 import { buildSystemPrompt, resolveOccurredAt } from './prompt';
+import { applyCanonical } from './normalize';
 import type { ParseContext, ParsedTransaction } from './types';
 import type { LendingDirection, TransactionType } from '@/lib/db-types';
 
@@ -115,7 +116,7 @@ function mapPayload(
     ctx.groups.find((g) => g.id === ctx.defaultGroupId)?.name ??
     null;
 
-  return {
+  const parsed: ParsedTransaction = {
     type: payload.type,
     amount: payload.amount,
     categoryId: categoryMatch?.id ?? null,
@@ -136,6 +137,9 @@ function mapPayload(
     rawInput: input,
     reasoning: `${provider}: ${payload.reasoning ?? ''}`.trim(),
   };
+
+  // Pin fuel/ride keywords to a single canonical category for consistency.
+  return applyCanonical(parsed, ctx.categories);
 }
 
 function isValidType(t: unknown): t is TransactionType {

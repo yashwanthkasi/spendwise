@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import {
   Plus,
@@ -14,7 +13,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { SheetBody } from '@/components/ui/sheet';
 import { PageHeader } from '@/components/PageHeader';
 import { TransactionForm } from '@/components/TransactionForm';
-import { TransactionRow } from '@/components/TransactionRow';
+import { TransactionList } from '@/components/TransactionList';
 import { TransactionDetailSheet } from '@/components/TransactionDetailSheet';
 import { QuickGroupSheet } from '@/components/QuickGroupSheet';
 import { useGroups } from '@/hooks/useGroups';
@@ -40,6 +39,7 @@ import {
 } from '@/components/activity/FiltersSheet';
 import { StatsBar } from '@/components/activity/StatsBar';
 import { AiSummaryCard } from '@/components/activity/AiSummaryCard';
+import { getCurrentPlace } from '@/services/location';
 
 export default function Activity() {
   const [params, setParams] = useSearchParams();
@@ -288,18 +288,7 @@ export default function Activity() {
           )}
         </div>
       ) : (
-        <motion.div layout className="space-y-2">
-          {txns.map((t) => (
-            <motion.div
-              key={t.id}
-              layout
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-            >
-              <TransactionRow txn={t} onOpen={setSelected} />
-            </motion.div>
-          ))}
-        </motion.div>
+        <TransactionList txns={txns} onOpen={setSelected} />
       )}
 
       {/* Detail */}
@@ -321,7 +310,13 @@ export default function Activity() {
           onCancel={() => setAddOpen(false)}
           onSubmit={async (input) => {
             try {
-              await create.mutateAsync(input);
+              const place = await getCurrentPlace();
+              await create.mutateAsync({
+                ...input,
+                latitude: place?.latitude ?? null,
+                longitude: place?.longitude ?? null,
+                place_label: place?.label ?? null,
+              });
               toast.success('Added');
               setAddOpen(false);
             } catch (err) {

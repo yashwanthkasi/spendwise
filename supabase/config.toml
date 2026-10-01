@@ -1,5 +1,5 @@
 project_id = "spendwise"
 [functions.capture]
-verify_jwt = true
+verify_jwt = false
 [functions.analyze]
-verify_jwt = true
+verify_jwt = false

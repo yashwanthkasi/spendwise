@@ -2,8 +2,9 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 export const headers = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+    "authorization, x-client-info, apikey, content-type, x-supabase-api-version, x-supabase-client-platform, x-supabase-client-version",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Max-Age": "86400",
 };
 export function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {

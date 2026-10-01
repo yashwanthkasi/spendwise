@@ -1,5 +1,8 @@
 project_id = "spendwise"
 [functions.capture]
-verify_jwt = true
+# The function validates the caller JWT itself so browser OPTIONS preflights
+# can reach the CORS handler without being rejected by the gateway.
+verify_jwt = false
 [functions.analyze]
-verify_jwt = true
+# Keep the same behavior for the Insights request path.
+verify_jwt = false

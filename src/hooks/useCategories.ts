@@ -1,18 +1,21 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
-import type { Category, TransactionType } from '@/lib/db-types';
+import { useAuth } from "./useAuth";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
+import type { Category, TransactionType } from "@/lib/db-types";
 
-const KEY = ['categories'] as const;
+const KEY = ["categories"] as const;
 
 export function useCategories() {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: KEY,
+    queryKey: [...KEY, user?.id],
+    enabled: !!user,
     queryFn: async (): Promise<Category[]> => {
       const { data, error } = await supabase
-        .from('categories')
-        .select('*')
-        .order('type', { ascending: true })
-        .order('name', { ascending: true });
+        .from("categories")
+        .select("*")
+        .order("type", { ascending: true })
+        .order("name", { ascending: true });
       if (error) throw error;
       return data ?? [];
     },
@@ -33,9 +36,9 @@ export function useCreateCategory() {
     mutationFn: async (input: CategoryInput): Promise<Category> => {
       const { data: userData } = await supabase.auth.getUser();
       const user = userData.user;
-      if (!user) throw new Error('Not signed in');
+      if (!user) throw new Error("Not signed in");
       const { data, error } = await supabase
-        .from('categories')
+        .from("categories")
         .insert({
           user_id: user.id,
           name: input.name.trim(),
@@ -50,7 +53,7 @@ export function useCreateCategory() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+    onSuccess: () => Promise.all([qc.invalidateQueries({ queryKey: KEY }),qc.invalidateQueries({queryKey:["transactions"]})]),
   });
 }
 
@@ -65,15 +68,15 @@ export function useUpdateCategory() {
       patch: Partial<Category>;
     }): Promise<Category> => {
       const { data, error } = await supabase
-        .from('categories')
+        .from("categories")
         .update(patch)
-        .eq('id', id)
+        .eq("id", id)
         .select()
         .single();
       if (error) throw error;
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+    onSuccess: () => Promise.all([qc.invalidateQueries({ queryKey: KEY }),qc.invalidateQueries({queryKey:["transactions"]})]),
   });
 }
 
@@ -81,9 +84,9 @@ export function useDeleteCategory() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('categories').delete().eq('id', id);
+      const { error } = await supabase.from("categories").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+    onSuccess: () => Promise.all([qc.invalidateQueries({ queryKey: KEY }),qc.invalidateQueries({queryKey:["transactions"]})]),
   });
 }

@@ -7,9 +7,9 @@ import {
   format,
   startOfMonth,
   startOfWeek,
-} from 'date-fns';
-import type { Budget, BudgetPeriod, Category, Group } from '@/lib/db-types';
-import type { TransactionWithRelations } from '@/hooks/useTransactions';
+} from "date-fns";
+import type { Budget, BudgetPeriod, Category, Group } from "@/lib/db-types";
+import type { TransactionWithRelations } from "@/hooks/useTransactions";
 
 export interface PeriodRange {
   start: Date;
@@ -22,17 +22,17 @@ export function periodRangeAt(
   offset: number,
   now: Date = new Date(),
 ): PeriodRange {
-  if (period === 'weekly') {
+  if (period === "weekly") {
     const ref = addWeeks(now, offset);
     const start = startOfWeek(ref, { weekStartsOn: 1 });
     const end = endOfWeek(ref, { weekStartsOn: 1 });
-    return { start, end, label: `Week of ${format(start, 'd MMM')}` };
+    return { start, end, label: `Week of ${format(start, "d MMM")}` };
   }
   const ref = addMonths(now, offset);
   return {
     start: startOfMonth(ref),
     end: endOfMonth(ref),
-    label: format(ref, 'MMM yyyy'),
+    label: format(ref, "MMM yyyy"),
   };
 }
 
@@ -47,15 +47,15 @@ export function filterForScope(
       new Date(t.occurred_at) <= range.end,
   );
   switch (budget.scope) {
-    case 'overall':
-      return inRange.filter((t) => t.type === 'expense');
-    case 'type':
+    case "overall":
+      return inRange.filter((t) => t.type === "expense");
+    case "type":
       return inRange.filter((t) => t.type === budget.scope_id);
-    case 'category':
+    case "category":
       return inRange.filter((t) => t.category_id === budget.scope_id);
-    case 'group':
+    case "group":
       return inRange.filter(
-        (t) => t.group_id === budget.scope_id && t.type === 'expense',
+        (t) => t.group_id === budget.scope_id && t.type === "expense",
       );
   }
 }
@@ -74,7 +74,7 @@ export interface BudgetProgress {
   totalDays: number;
   dailyAllowance: number | null; // null on the last day of a period
   forecast: number; // projected end-of-period spend at current pace
-  paceStatus: 'on-track' | 'warning' | 'over';
+  paceStatus: "on-track" | "warning" | "over";
 }
 
 export function describeBudgetLabel(
@@ -83,17 +83,17 @@ export function describeBudgetLabel(
   groups: Group[],
 ): string {
   switch (budget.scope) {
-    case 'overall':
-      return 'All expenses';
-    case 'type':
-      return `${budget.scope_id ?? ''} (type)`;
-    case 'category': {
+    case "overall":
+      return "All expenses";
+    case "type":
+      return `${budget.scope_id ?? ""} (type)`;
+    case "category": {
       const c = categories.find((x) => x.id === budget.scope_id);
-      return c ? `${c.emoji ?? '🏷️'} ${c.name}` : 'Category';
+      return c ? `${c.emoji ?? "🏷️"} ${c.name}` : "Category";
     }
-    case 'group': {
+    case "group": {
       const g = groups.find((x) => x.id === budget.scope_id);
-      return g ? `${g.emoji ?? '📁'} ${g.name}` : 'Group';
+      return g ? `${g.emoji ?? "📁"} ${g.name}` : "Group";
     }
   }
 }
@@ -126,9 +126,9 @@ export function computeBudgetProgress(
   // Forecast: extrapolate at current daily pace through end of period.
   const forecast = daysElapsed > 0 ? (spent / daysElapsed) * totalDays : spent;
 
-  let paceStatus: BudgetProgress['paceStatus'] = 'on-track';
-  if (over) paceStatus = 'over';
-  else if (forecast > limit) paceStatus = 'warning';
+  let paceStatus: BudgetProgress["paceStatus"] = "on-track";
+  if (over) paceStatus = "over";
+  else if (forecast > limit) paceStatus = "warning";
 
   return {
     budget,
@@ -138,7 +138,7 @@ export function computeBudgetProgress(
     pct,
     over,
     range,
-    periodLabel: budget.period === 'weekly' ? 'This week' : 'This month',
+    periodLabel: budget.period === "weekly" ? "This week" : "This month",
     daysElapsed,
     daysLeft,
     totalDays,

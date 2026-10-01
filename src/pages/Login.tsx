@@ -1,16 +1,16 @@
-import { FormEvent, useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { FormEvent, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { useAuth } from '@/hooks/useAuth';
+} from "@/components/ui/card";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function Login() {
   const { signIn } = useAuth();
@@ -18,8 +18,8 @@ export default function Login() {
   const location = useLocation();
   const from = (location.state as { from?: { pathname: string } })?.from
     ?.pathname;
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function onSubmit(e: FormEvent) {
@@ -27,9 +27,9 @@ export default function Login() {
     setLoading(true);
     try {
       await signIn(email, password);
-      navigate(from ?? '/', { replace: true });
+      navigate(from ?? "/", { replace: true });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Sign in failed');
+      toast.error(err instanceof Error ? err.message : "Sign in failed");
     } finally {
       setLoading(false);
     }
@@ -45,6 +45,8 @@ export default function Login() {
         <CardContent>
           <form onSubmit={onSubmit} className="space-y-4">
             <Input
+              aria-label="Email"
+              autoComplete="email"
               type="email"
               placeholder="you@example.com"
               value={email}
@@ -53,6 +55,8 @@ export default function Login() {
               autoFocus
             />
             <Input
+              aria-label="Password"
+              autoComplete="current-password"
               type="password"
               placeholder="Password"
               value={password}
@@ -60,10 +64,10 @@ export default function Login() {
               required
             />
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Signing in…' : 'Sign in'}
+              {loading ? "Signing in…" : "Sign in"}
             </Button>
             <p className="text-center text-sm text-muted-foreground">
-              No account?{' '}
+              No account?{" "}
               <Link to="/signup" className="text-primary underline">
                 Create one
               </Link>

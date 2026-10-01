@@ -1,12 +1,13 @@
-import { format } from 'date-fns';
-import { Check, MapPin, Pencil, Trash2, Undo2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { SheetBody } from '@/components/ui/sheet';
-import { TypePill } from '@/components/TypePill';
-import type { TransactionWithRelations } from '@/hooks/useTransactions';
-import { TYPE_META } from '@/lib/constants';
-import { displayPlace } from '@/services/location';
-import { formatINR } from '@/lib/utils';
+import { formatInTimeZone } from "date-fns-tz";
+import { useProfile } from "@/hooks/useProfile";
+import { Check, MapPin, Pencil, Trash2, Undo2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { SheetBody } from "@/components/ui/sheet";
+import { TypePill } from "@/components/TypePill";
+import type { TransactionWithRelations } from "@/hooks/useTransactions";
+import { TYPE_META } from "@/lib/constants";
+import { displayPlace } from "@/services/location";
+import { formatINR } from "@/lib/utils";
 
 export function TransactionDetailSheet({
   txn,
@@ -21,8 +22,11 @@ export function TransactionDetailSheet({
   onDelete: (t: TransactionWithRelations) => void;
   onToggleSettle?: (t: TransactionWithRelations) => void;
 }) {
-  const sign = txn ? TYPE_META[txn.type].signHint : 'neutral';
-  const prefix = sign === 'debit' ? '−' : sign === 'credit' ? '+' : '';
+  const { data: profile } = useProfile();
+  const format = (d: Date, pattern: string) =>
+    formatInTimeZone(d, profile?.timezone ?? "Asia/Kolkata", pattern);
+  const sign = txn ? TYPE_META[txn.type].signHint : "neutral";
+  const prefix = sign === "debit" ? "−" : sign === "credit" ? "+" : "";
   const placeLabel = txn ? displayPlace(txn) : null;
 
   return (
@@ -51,19 +55,22 @@ export function TransactionDetailSheet({
               label="Category"
               value={
                 txn.category
-                  ? `${txn.category.emoji ?? '🏷️'} ${txn.category.name}`
-                  : '—'
+                  ? `${txn.category.emoji ?? "🏷️"} ${txn.category.name}`
+                  : "—"
               }
             />
             <MetaRow
               label="Group"
               value={
-                txn.group ? `${txn.group.emoji ?? '📁'} ${txn.group.name}` : '—'
+                txn.group ? `${txn.group.emoji ?? "📁"} ${txn.group.name}` : "—"
               }
             />
             <MetaRow
               label="When"
-              value={format(new Date(txn.occurred_at), 'EEE, d MMM yyyy · h:mm a')}
+              value={format(
+                new Date(txn.occurred_at),
+                "EEE, d MMM yyyy · h:mm a",
+              )}
             />
             {placeLabel && (
               <MetaRow
@@ -76,6 +83,14 @@ export function TransactionDetailSheet({
                 }
               />
             )}
+            <MetaRow
+              label="Source"
+              value={
+                txn.source === "recurring"
+                  ? "Automatic recurring entry"
+                  : txn.source.replaceAll("_", " ")
+              }
+            />
             {txn.note && <MetaRow label="Note" value={txn.note} />}
             {txn.raw_input && txn.raw_input !== txn.note && (
               <MetaRow
@@ -92,9 +107,9 @@ export function TransactionDetailSheet({
                 Lending
               </div>
               <div className="text-sm">
-                {txn.lending_details.direction === 'lent'
-                  ? 'You lent to '
-                  : 'You borrowed from '}
+                {txn.lending_details.direction === "lent"
+                  ? "You lent to "
+                  : "You borrowed from "}
                 <b>{txn.lending_details.counterparty}</b>
               </div>
               {txn.lending_details.due_date && (
@@ -105,12 +120,14 @@ export function TransactionDetailSheet({
               <div className="flex items-center justify-between text-xs">
                 <span>
                   {txn.lending_details.settled ? (
-                    <span className="text-[hsl(var(--success))]">✓ Settled</span>
+                    <span className="text-[hsl(var(--success))]">
+                      ✓ Settled
+                    </span>
                   ) : (
                     <span className="text-amber-600">⏳ Outstanding</span>
                   )}
                   {txn.lending_details.settled_at &&
-                    ` · ${format(new Date(txn.lending_details.settled_at), 'MMM d')}`}
+                    ` · ${format(new Date(txn.lending_details.settled_at), "MMM d")}`}
                 </span>
                 {onToggleSettle && (
                   <Button
@@ -152,13 +169,7 @@ export function TransactionDetailSheet({
   );
 }
 
-function MetaRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: React.ReactNode;
-}) {
+function MetaRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-start justify-between gap-3 px-4 py-3 text-sm">
       <span className="shrink-0 text-muted-foreground">{label}</span>

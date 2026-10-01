@@ -1,18 +1,21 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
-import type { Group, GroupKind } from '@/lib/db-types';
+import { useAuth } from "./useAuth";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
+import type { Group, GroupKind } from "@/lib/db-types";
 
-const KEY = ['groups'] as const;
+const KEY = ["groups"] as const;
 
 export function useGroups(opts: { includeArchived?: boolean } = {}) {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: [...KEY, opts],
+    queryKey: [...KEY, user?.id, opts],
+    enabled: !!user,
     queryFn: async (): Promise<Group[]> => {
       let q = supabase
-        .from('groups')
-        .select('*')
-        .order('created_at', { ascending: true });
-      if (!opts.includeArchived) q = q.eq('archived', false);
+        .from("groups")
+        .select("*")
+        .order("created_at", { ascending: true });
+      if (!opts.includeArchived) q = q.eq("archived", false);
       const { data, error } = await q;
       if (error) throw error;
       return data ?? [];
@@ -35,15 +38,15 @@ export function useCreateGroup() {
     mutationFn: async (input: GroupInput): Promise<Group> => {
       const { data: userData } = await supabase.auth.getUser();
       const user = userData.user;
-      if (!user) throw new Error('Not signed in');
+      if (!user) throw new Error("Not signed in");
       const { data, error } = await supabase
-        .from('groups')
+        .from("groups")
         .insert({
           user_id: user.id,
           name: input.name.trim(),
           emoji: input.emoji ?? null,
           color: input.color ?? null,
-          kind: input.kind ?? 'persistent',
+          kind: input.kind ?? "persistent",
           start_date: input.start_date ?? null,
           end_date: input.end_date ?? null,
         })
@@ -52,7 +55,7 @@ export function useCreateGroup() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+    onSuccess: () => Promise.all([qc.invalidateQueries({ queryKey: KEY }),qc.invalidateQueries({queryKey:["transactions"]})]),
   });
 }
 
@@ -67,15 +70,15 @@ export function useUpdateGroup() {
       patch: Partial<Group>;
     }): Promise<Group> => {
       const { data, error } = await supabase
-        .from('groups')
+        .from("groups")
         .update(patch)
-        .eq('id', id)
+        .eq("id", id)
         .select()
         .single();
       if (error) throw error;
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+    onSuccess: () => Promise.all([qc.invalidateQueries({ queryKey: KEY }),qc.invalidateQueries({queryKey:["transactions"]})]),
   });
 }
 
@@ -83,9 +86,9 @@ export function useDeleteGroup() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('groups').delete().eq('id', id);
+      const { error } = await supabase.from("groups").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+    onSuccess: () => Promise.all([qc.invalidateQueries({ queryKey: KEY }),qc.invalidateQueries({queryKey:["transactions"]})]),
   });
 }

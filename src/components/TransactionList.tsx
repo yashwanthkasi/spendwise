@@ -1,13 +1,7 @@
-import { motion } from 'framer-motion';
-import { TransactionRow } from '@/components/TransactionRow';
-import { groupByDay } from '@/lib/groupTransactions';
-import { formatINR } from '@/lib/utils';
-import type { TransactionWithRelations } from '@/hooks/useTransactions';
-
-/**
- * Renders transactions grouped into per-day sections (Today / Yesterday / date)
- * with a subtle spend total on each header. Each row shows its own location.
- */
+import { useProfile } from "@/hooks/useProfile";
+import { TransactionRow } from "./TransactionRow";
+import { groupByDay } from "@/lib/groupTransactions";
+import type { TransactionWithRelations } from "@/hooks/useTransactions";
 export function TransactionList({
   txns,
   onOpen,
@@ -15,35 +9,20 @@ export function TransactionList({
   txns: TransactionWithRelations[];
   onOpen?: (t: TransactionWithRelations) => void;
 }) {
-  const sections = groupByDay(txns);
-
+  const { data: profile } = useProfile();
   return (
-    <div className="space-y-5">
-      {sections.map((section) => (
-        <div key={section.key} className="space-y-2">
-          <div className="flex items-baseline justify-between px-1">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              {section.label}
-            </h3>
-            {section.spent > 0 && (
-              <span className="text-xs tabular-nums text-muted-foreground">
-                {formatINR(section.spent)} spent
-              </span>
-            )}
-          </div>
-          <motion.div layout className="space-y-2">
-            {section.items.map((t) => (
-              <motion.div
-                key={t.id}
-                layout
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-              >
-                <TransactionRow txn={t} onOpen={onOpen} />
-              </motion.div>
+    <div className="space-y-6">
+      {groupByDay(txns, profile?.timezone).map((s) => (
+        <section key={s.key}>
+          <h3 className="mb-1 text-xs font-medium text-muted-foreground">
+            {s.label}
+          </h3>
+          <div>
+            {s.items.map((t) => (
+              <TransactionRow key={t.id} txn={t} onOpen={onOpen} />
             ))}
-          </motion.div>
-        </div>
+          </div>
+        </section>
       ))}
     </div>
   );

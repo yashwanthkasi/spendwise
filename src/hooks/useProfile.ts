@@ -1,20 +1,23 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
-import type { Profile } from '@/lib/db-types';
+import { useAuth } from "./useAuth";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
+import type { Profile } from "@/lib/db-types";
 
-const KEY = ['profile'] as const;
+const KEY = ["profile"] as const;
 
 export function useProfile() {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: KEY,
+    queryKey: [...KEY, user?.id],
+    enabled: !!user,
     queryFn: async (): Promise<Profile | null> => {
       const { data: userData } = await supabase.auth.getUser();
       const user = userData.user;
       if (!user) return null;
       const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
         .maybeSingle();
       if (error) throw error;
       return data;
@@ -28,11 +31,11 @@ export function useUpdateProfile() {
     mutationFn: async (patch: Partial<Profile>): Promise<Profile> => {
       const { data: userData } = await supabase.auth.getUser();
       const user = userData.user;
-      if (!user) throw new Error('Not signed in');
+      if (!user) throw new Error("Not signed in");
       const { data, error } = await supabase
-        .from('profiles')
+        .from("profiles")
         .update(patch)
-        .eq('id', user.id)
+        .eq("id", user.id)
         .select()
         .single();
       if (error) throw error;

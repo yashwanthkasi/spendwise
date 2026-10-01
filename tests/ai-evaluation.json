@@ -1,0 +1,112 @@
+[
+  {
+    "text": "lunch 250",
+    "expected": [{ "amount": 250, "type": "expense", "category": "Food" }]
+  },
+  {
+    "text": "salary 95k",
+    "expected": [{ "amount": 95000, "type": "income", "category": "Salary" }]
+  },
+  {
+    "text": "petrol 1,250.50",
+    "expected": [{ "amount": 1250.5, "type": "expense", "category": "Fuel" }]
+  },
+  {
+    "text": "Yesterday I spent 250 on lunch and 120 on an Uber for Office",
+    "expected": [
+      {
+        "amount": 250,
+        "type": "expense",
+        "category": "Food",
+        "group": "Office",
+        "date": "yesterday"
+      },
+      {
+        "amount": 120,
+        "type": "expense",
+        "category": "Transport",
+        "group": "Office",
+        "date": "yesterday"
+      }
+    ]
+  },
+  {
+    "text": "day before yesterday groceries 400",
+    "expected": [
+      {
+        "amount": 400,
+        "type": "expense",
+        "category": "Groceries",
+        "date": "day before yesterday"
+      }
+    ]
+  },
+  {
+    "text": "SIP 10,000",
+    "expected": [{ "amount": 10000, "type": "investment", "category": "SIP" }]
+  },
+  {
+    "text": "lent Ravi 2000",
+    "expected": [
+      {
+        "amount": 2000,
+        "type": "lending",
+        "counterparty": "Ravi",
+        "direction": "lent"
+      }
+    ]
+  },
+  {
+    "text": "borrowed 500 from Ravi",
+    "expected": [
+      {
+        "amount": 500,
+        "type": "lending",
+        "counterparty": "Ravi",
+        "direction": "borrowed"
+      }
+    ]
+  },
+  {
+    "text": "transferred 5000 from my bank to my wallet",
+    "expected": [{ "amount": 5000, "type": "transfer" }]
+  },
+  {
+    "text": "refund 999",
+    "expected": [{ "amount": 999, "type": "income", "category": "Refund" }]
+  },
+  {
+    "text": "salary 1 lakh and rent 20k",
+    "expected": [
+      { "amount": 100000, "type": "income", "category": "Salary" },
+      { "amount": 20000, "type": "expense", "category": "Rent" }
+    ]
+  },
+  {
+    "text": "coffee 150, bus 40",
+    "expected": [
+      { "amount": 150, "type": "expense" },
+      { "amount": 40, "type": "expense", "category": "Transport" }
+    ]
+  },
+  {
+    "text": "electricity 1500 on 2026-09-15",
+    "expected": [
+      {
+        "amount": 1500,
+        "type": "expense",
+        "category": "Utilities",
+        "date": "2026-09-15"
+      }
+    ]
+  },
+  { "text": "paid Ravi 2000", "clarify": true },
+  { "text": "I did not spend 500 on shopping", "clarify": true },
+  { "text": "I will pay rent 20000 tomorrow", "clarify": true },
+  { "text": "lunch at the cafe", "clarify": true },
+  { "text": "lunch 250 for UnknownTrip", "clarify": true },
+  { "text": "paid 200 or maybe 250 for lunch", "clarify": true },
+  { "text": "Ravi repaid my loan of 2000", "clarify": true },
+  { "text": "set up rent 20000 every month", "clarify": true },
+  { "text": "lunch 250 and taxi amount unknown", "clarify": true }
+]

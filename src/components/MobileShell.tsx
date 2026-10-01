@@ -1,155 +1,111 @@
-import { useEffect } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
-import { useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { createContext, useContext, useState } from "react";
+import { NavLink, Outlet } from "react-router-dom";
 import {
-  Zap,
-  ListOrdered,
-  PieChart,
-  Target,
-  Settings as SettingsIcon,
-} from 'lucide-react';
-import { useAuth } from '@/hooks/useAuth';
-import { cn } from '@/lib/utils';
-import { runDueRecurring } from '@/services/recurring';
-import { PermissionBanner } from '@/components/PermissionBanner';
-
-type NavItem = {
-  to: string;
-  label: string;
-  icon: typeof Zap;
-  end?: boolean;
-};
-
-const NAV: NavItem[] = [
-  { to: '/', label: 'Home', icon: Zap, end: true },
-  { to: '/activity', label: 'Activity', icon: ListOrdered },
-  { to: '/insights', label: 'Insights', icon: PieChart },
-  { to: '/budgets', label: 'Budgets', icon: Target },
-  { to: '/settings', label: 'Settings', icon: SettingsIcon },
+  Home,
+  ArrowLeftRight,
+  ChartNoAxesCombined,
+  Grid2X2,
+  Plus,
+  Wallet,
+} from "lucide-react";
+import { CaptureSheet } from "./CaptureSheet";
+import { cn } from "@/lib/utils";
+const AddContext = createContext<() => void>(() => {});
+export const useOpenCapture = () => useContext(AddContext);
+const items = [
+  { to: "/", label: "Home", icon: Home },
+  { to: "/transactions", label: "Transactions", icon: ArrowLeftRight },
+  { to: "/insights", label: "Insights", icon: ChartNoAxesCombined },
+  { to: "/more", label: "More", icon: Grid2X2 },
 ];
-
 export function MobileShell() {
-  const { user } = useAuth();
-  const qc = useQueryClient();
-  const location = useLocation();
-
-  useEffect(() => {
-    if (!user) return;
-    runDueRecurring().then((n) => {
-      if (n > 0) {
-        toast.info(`Recurring: ${n} transaction${n === 1 ? '' : 's'} auto-added`);
-        qc.invalidateQueries({ queryKey: ['transactions'] });
-        qc.invalidateQueries({ queryKey: ['recurring_rules'] });
-      }
-    });
-  }, [user, qc]);
-
+  const [open, setOpen] = useState(false);
   return (
-    // Block layout (no flex wrapper around the whole viewport).
-    // Document scroll handles all long pages; bottom nav and desktop rail
-    // are both `fixed` relative to the viewport regardless of inner transforms.
-    <div className="min-h-dvh bg-gradient-to-b from-background to-muted/30">
-      {/* ── desktop left rail (md+) ──────────────────────────────────────── */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r bg-card/70 backdrop-blur md:flex">
-        <div className="flex items-center gap-2 px-5 py-5">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
-            💸
-          </span>
-          <span className="text-lg font-semibold tracking-tight">SpendWise</span>
-        </div>
-        <nav className="flex-1 space-y-1 px-3">
-          {NAV.map(({ to, label, icon: Icon, end }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={end}
-              className={({ isActive }) =>
-                cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
-                  isActive
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
-                )
-              }
-            >
-              <Icon className="h-4 w-4" />
-              {label}
-            </NavLink>
-          ))}
-        </nav>
-        <div className="px-5 py-4 text-xs text-muted-foreground">
-          <div className="truncate">{user?.email}</div>
-        </div>
-      </aside>
-
-      {/* ── main content ──────────────────────────────────────────────────── */}
-      <main
-        className="md:pl-60"
-        style={{
-          // Make sure the bottom nav never overlaps content on mobile,
-          // including the iOS safe-area inset.
-          paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom))',
-        }}
-      >
-        <div className="md:pb-0" style={{ paddingBottom: 0 }}>
-          {/* Mounted once (outside the keyed route container) so it prompts a
-              single time and persists across navigation. */}
-          <div className="mx-auto w-full max-w-3xl px-4 pt-4 md:px-8 md:pt-5 empty:hidden">
-            <PermissionBanner />
-          </div>
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={location.pathname}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.18, ease: 'easeOut' }}
-              className="mx-auto w-full max-w-3xl px-4 py-5 md:px-8 md:py-7"
-            >
-              <Outlet />
-            </motion.div>
-          </AnimatePresence>
-        </div>
-      </main>
-
-      {/* ── mobile bottom nav — fixed to viewport, visible on every page ── */}
-      <nav
-        className="fixed inset-x-0 bottom-0 z-50 border-t bg-card/95 backdrop-blur md:hidden"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
-      >
-        <ul className="mx-auto grid max-w-md grid-cols-5">
-          {NAV.map(({ to, label, icon: Icon, end }) => (
-            <li key={to}>
+    <AddContext.Provider value={() => setOpen(true)}>
+      <div className="min-h-dvh">
+        <a href="#main" className="sr-only focus:not-sr-only">
+          Skip to content
+        </a>
+        <aside className="fixed inset-y-0 left-0 hidden w-56 flex-col border-r bg-card p-5 md:flex">
+          <NavLink
+            to="/"
+            className="mb-12 flex items-center gap-2 text-xl font-semibold tracking-tight"
+          >
+            <Wallet size={24} className="text-primary" />
+            spendwise<span className="text-primary">.</span>
+          </NavLink>
+          <nav className="space-y-2">
+            {items.map(({ to, label, icon: Icon }) => (
               <NavLink
+                key={to}
                 to={to}
-                end={end}
+                end={to === "/"}
                 className={({ isActive }) =>
                   cn(
-                    'relative flex flex-col items-center gap-0.5 py-2.5 text-[11px] transition-colors',
-                    isActive ? 'text-primary' : 'text-muted-foreground',
+                    "flex items-center gap-3 rounded-xl p-3 text-sm",
+                    isActive
+                      ? "bg-primary/10 font-medium text-primary"
+                      : "text-muted-foreground hover:bg-muted",
                   )
                 }
               >
-                {({ isActive }) => (
-                  <>
-                    {isActive && (
-                      <motion.span
-                        layoutId="nav-indicator"
-                        className="absolute -top-px left-1/2 h-0.5 w-10 -translate-x-1/2 rounded-full bg-primary"
-                        transition={{ type: 'spring', stiffness: 420, damping: 36 }}
-                      />
-                    )}
-                    <Icon className="h-5 w-5" />
-                    <span>{label}</span>
-                  </>
-                )}
+                <Icon size={18} />
+                {label}
               </NavLink>
-            </li>
-          ))}
-        </ul>
-      </nav>
-    </div>
+            ))}
+          </nav>
+          <button
+            className="mt-8 flex items-center justify-center gap-2 rounded-xl bg-primary p-3 text-sm text-primary-foreground"
+            onClick={() => setOpen(true)}
+          >
+            <Plus size={18} />
+            Add transaction
+          </button>
+          <p className="mt-auto text-xs leading-relaxed text-muted-foreground">
+            A little clarity.
+            <br />
+            Every day.
+          </p>
+        </aside>
+        <main id="main" className="md:ml-56">
+          <div className="mx-auto max-w-4xl px-5 pb-40 pt-7 sm:px-8 md:pb-12 md:pt-12">
+            <Outlet />
+          </div>
+        </main>
+        <button
+          onClick={() => setOpen(true)}
+          className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-5 z-40 flex h-12 items-center gap-2 rounded-full bg-primary px-5 text-sm font-medium text-primary-foreground shadow-lg md:hidden"
+        >
+          <Plus size={20} />
+          Add transaction
+        </button>
+        <nav
+          aria-label="Main navigation"
+          className="fixed inset-x-0 bottom-0 z-40 border-t bg-card pb-[env(safe-area-inset-bottom)] md:hidden"
+        >
+          <div className="mx-auto grid max-w-lg grid-cols-4">
+            {items.map(({ to, label, icon: Icon }) => (
+              <NavLink
+                key={to}
+                to={to}
+                end={to === "/"}
+                className={({ isActive }) =>
+                  cn(
+                    "flex min-h-16 flex-col items-center justify-center gap-1 text-[11px]",
+                    isActive
+                      ? "font-semibold text-primary"
+                      : "text-muted-foreground",
+                  )
+                }
+              >
+                <Icon size={20} />
+                {label}
+              </NavLink>
+            ))}
+          </div>
+        </nav>
+        <CaptureSheet open={open} onOpenChange={setOpen} />
+      </div>
+    </AddContext.Provider>
   );
 }

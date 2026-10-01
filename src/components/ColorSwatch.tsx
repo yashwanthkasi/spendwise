@@ -1,5 +1,5 @@
-import { COLOR_PALETTE } from '@/lib/constants';
-import { cn } from '@/lib/utils';
+import { COLOR_PALETTE } from "@/lib/constants";
+import { cn } from "@/lib/utils";
 
 export function ColorPicker({
   value,
@@ -17,8 +17,8 @@ export function ColorPicker({
           onClick={() => onChange(c)}
           aria-label={c}
           className={cn(
-            'h-6 w-6 rounded-full ring-offset-2 transition',
-            value === c && 'ring-2 ring-ring',
+            "h-6 w-6 rounded-full ring-offset-2 transition",
+            value === c && "ring-2 ring-ring",
           )}
           style={{ backgroundColor: c }}
         />

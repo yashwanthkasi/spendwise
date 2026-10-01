@@ -1,37 +1,37 @@
-import { FormEvent, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { FormEvent, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { useAuth } from '@/hooks/useAuth';
+} from "@/components/ui/card";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function Signup() {
   const { signUp } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (password.length < 6) {
-      toast.error('Password must be at least 6 characters');
+      toast.error("Password must be at least 6 characters");
       return;
     }
     setLoading(true);
     try {
       await signUp(email, password);
-      toast.success('Account created. Check your email to confirm.');
-      navigate('/login', { replace: true });
+      toast.success("Account created. Check your email to confirm.");
+      navigate("/login", { replace: true });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Sign up failed');
+      toast.error(err instanceof Error ? err.message : "Sign up failed");
     } finally {
       setLoading(false);
     }
@@ -49,6 +49,8 @@ export default function Signup() {
         <CardContent>
           <form onSubmit={onSubmit} className="space-y-4">
             <Input
+              aria-label="Email"
+              autoComplete="email"
               type="email"
               placeholder="you@example.com"
               value={email}
@@ -57,6 +59,8 @@ export default function Signup() {
               autoFocus
             />
             <Input
+              aria-label="Password"
+              autoComplete="new-password"
               type="password"
               placeholder="Password (min 6 chars)"
               value={password}
@@ -64,10 +68,10 @@ export default function Signup() {
               required
             />
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Creating…' : 'Create account'}
+              {loading ? "Creating…" : "Create account"}
             </Button>
             <p className="text-center text-sm text-muted-foreground">
-              Already have an account?{' '}
+              Already have an account?{" "}
               <Link to="/login" className="text-primary underline">
                 Sign in
               </Link>

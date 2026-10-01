@@ -36,7 +36,7 @@ export interface VoiceSession {
 }
 
 export function startVoiceCapture({
-  lang = 'en-IN',
+  lang = "en-IN",
   onResult,
   onError,
   onEnd,
@@ -48,7 +48,7 @@ export function startVoiceCapture({
 }): VoiceSession {
   const Ctor = getCtor();
   if (!Ctor) {
-    onError?.('Voice not supported in this browser');
+    onError?.("Voice not supported in this browser");
     onEnd?.();
     return { stop: () => {} };
   }
@@ -60,7 +60,7 @@ export function startVoiceCapture({
     const last = e.results[e.results.length - 1];
     onResult({ transcript: last[0].transcript, isFinal: last.isFinal });
   };
-  r.onerror = (e: any) => onError?.(e.error || 'voice error');
+  r.onerror = (e: any) => onError?.(e.error || "voice error");
   r.onend = () => onEnd?.();
   r.start();
   return {

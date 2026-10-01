@@ -1,76 +1,42 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "./useAuth";
 import type {
   LendingDetails,
   Transaction,
   TransactionSource,
   TransactionType,
-} from '@/lib/db-types';
-
+} from "@/lib/db-types";
 export interface TransactionFilters {
-  type?: TransactionType | 'all';
-  groupId?: string | 'all';
-  categoryId?: string | 'all';
+  id?: string;
+  type?: TransactionType | "all";
+  groupId?: string;
+  categoryId?: string;
   search?: string;
-  from?: string; // ISO date
-  to?: string; // ISO date
-  limit?: number;
+  from?: string;
+  to?: string;
+  ruleId?: string;
 }
-
 export interface TransactionWithRelations extends Transaction {
-  category: { id: string; name: string; emoji: string | null; color: string | null } | null;
-  group: { id: string; name: string; emoji: string | null; color: string | null } | null;
+  category: {
+    id: string;
+    name: string;
+    emoji: string | null;
+    color: string | null;
+  } | null;
+  group: {
+    id: string;
+    name: string;
+    emoji: string | null;
+    color: string | null;
+  } | null;
   lending_details: LendingDetails | null;
 }
-
-const KEY = ['transactions'] as const;
-
-export function useTransactions(filters: TransactionFilters = {}) {
-  return useQuery({
-    queryKey: [...KEY, filters],
-    queryFn: async (): Promise<TransactionWithRelations[]> => {
-      let q = supabase
-        .from('transactions')
-        .select(
-          `*,
-          category:categories(id,name,emoji,color),
-          group:groups(id,name,emoji,color),
-          lending_details(*)`,
-        )
-        .order('occurred_at', { ascending: false })
-        .limit(filters.limit ?? 200);
-
-      if (filters.type && filters.type !== 'all') q = q.eq('type', filters.type);
-      if (filters.groupId && filters.groupId !== 'all')
-        q = q.eq('group_id', filters.groupId);
-      if (filters.categoryId && filters.categoryId !== 'all')
-        q = q.eq('category_id', filters.categoryId);
-      if (filters.from) q = q.gte('occurred_at', filters.from);
-      if (filters.to) q = q.lte('occurred_at', filters.to);
-      if (filters.search) q = q.ilike('note', `%${filters.search}%`);
-
-      const { data, error } = await q;
-      if (error) throw error;
-      const rows = (data ?? []) as unknown as Array<
-        Transaction & {
-          category: TransactionWithRelations['category'];
-          group: TransactionWithRelations['group'];
-          lending_details:
-            | LendingDetails
-            | LendingDetails[]
-            | null;
-        }
-      >;
-      return rows.map((row) => ({
-        ...row,
-        lending_details: Array.isArray(row.lending_details)
-          ? (row.lending_details[0] ?? null)
-          : row.lending_details,
-      }));
-    },
-  });
-}
-
 export interface TransactionInput {
   amount: number;
   type: TransactionType;
@@ -85,58 +51,111 @@ export interface TransactionInput {
   place_label?: string | null;
   lending?: {
     counterparty: string;
-    direction: 'lent' | 'borrowed';
+    direction: "lent" | "borrowed";
     due_date?: string | null;
   } | null;
 }
-
-export function useCreateTransaction() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (input: TransactionInput): Promise<Transaction> => {
-      const { data: userData } = await supabase.auth.getUser();
-      const user = userData.user;
-      if (!user) throw new Error('Not signed in');
-
-      const { data: txn, error } = await supabase
-        .from('transactions')
-        .insert({
-          user_id: user.id,
-          amount: input.amount,
-          type: input.type,
-          category_id: input.category_id,
-          group_id: input.group_id,
-          occurred_at: input.occurred_at,
-          note: input.note,
-          raw_input: input.raw_input ?? null,
-          source: input.source ?? 'manual',
-          latitude: input.latitude ?? null,
-          longitude: input.longitude ?? null,
-          place_label: input.place_label ?? null,
-        })
-        .select()
-        .single();
+export interface Summary {
+  count: number;
+  by_type: Partial<Record<TransactionType, { amount: number; count: number }>>;
+  categories: {
+    id: string | null;
+    name: string;
+    amount: number;
+    count: number;
+  }[];
+  groups: { id: string | null; name: string; amount: number; count: number }[];
+  locations: { name: string; amount: number; count: number }[];
+  lent: number;
+  borrowed: number;
+  revision: string;
+}
+export type Cursor = { id: string; occurred_at: string } | null;
+export async function fetchPage(
+  filters: TransactionFilters = {},
+  cursor: Cursor = null,
+  size = 50,
+): Promise<TransactionWithRelations[]> {
+  const query = filters;
+  const { data, error } = await supabase.rpc("transaction_page", {
+    p_filters: query,
+    p_cursor: cursor,
+    p_size: size,
+  });
+  if (error) throw error;
+  return data as TransactionWithRelations[];
+}
+export async function fetchAllTransactions(
+  filters: TransactionFilters = {},
+): Promise<TransactionWithRelations[]> {
+  const rows: TransactionWithRelations[] = [];
+  let cursor: Cursor = null;
+  for (;;) {
+    const page = await fetchPage(filters, cursor, 500);
+    rows.push(...page);
+    if (page.length < 500) return rows;
+    cursor = page[page.length - 1];
+  }
+}
+export function useTransactions(filters: TransactionFilters = {}) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["transactions", user?.id, "all", filters],
+    enabled: !!user,
+    queryFn: () => fetchAllTransactions(filters),
+  });
+}
+export function useTransactionFeed(filters: TransactionFilters = {}) {
+  const { user } = useAuth();
+  return useInfiniteQuery({
+    refetchInterval: 60000,
+    queryKey: ["transactions", user?.id, "feed", filters],
+    enabled: !!user,
+    initialPageParam: null as Cursor,
+    queryFn: ({ pageParam }) => fetchPage(filters, pageParam),
+    getNextPageParam: (last) =>
+      last.length === 50 ? last[last.length - 1] : undefined,
+  });
+}
+export function useSummary(filters: TransactionFilters = {}) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["transactions", user?.id, "summary", filters],
+    enabled: !!user,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("transaction_summary", {
+        p_filters: filters,
+      });
       if (error) throw error;
-
-      if (input.type === 'lending' && input.lending) {
-        const { error: lErr } = await supabase.from('lending_details').insert({
-          transaction_id: txn.id,
-          counterparty: input.lending.counterparty,
-          direction: input.lending.direction,
-          settled: false,
-          settled_at: null,
-          due_date: input.lending.due_date ?? null,
-        });
-        if (lErr) throw lErr;
-      }
-      return txn;
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: KEY });
+      return data as Summary;
     },
   });
 }
-
+export async function saveTransactions(
+  items: TransactionInput[],
+  requestId: string,
+): Promise<string[]> {
+  const { data, error } = await supabase.rpc("save_transactions", {
+    p_request_id: requestId,
+    p_items: items,
+  });
+  if (error) throw error;
+  return data as string[];
+}
+export function useCreateTransaction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: TransactionInput & { requestId?: string }) => {
+      const { requestId, ...item } = input;
+      const ids = await saveTransactions(
+        [item],
+        requestId ?? crypto.randomUUID(),
+      );
+      return { id: ids[0] } as Transaction;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["transactions"] }),
+  });
+}
 export function useUpdateTransaction() {
   const qc = useQueryClient();
   return useMutation({
@@ -147,54 +166,37 @@ export function useUpdateTransaction() {
     }: {
       id: string;
       patch: Partial<Transaction>;
-      lending?: {
-        counterparty?: string;
-        direction?: 'lent' | 'borrowed';
-        settled?: boolean;
-        due_date?: string | null;
-      };
-    }): Promise<Transaction> => {
-      const { data, error } = await supabase
-        .from('transactions')
-        .update(patch)
-        .eq('id', id)
-        .select()
-        .single();
+      lending?: Partial<LendingDetails>;
+    }) => {
+      const { data, error } = await supabase.rpc("update_transaction", {
+        p_id: id,
+        p_patch: patch,
+        p_lending: lending ?? null,
+      });
       if (error) throw error;
-
-      if (lending !== undefined) {
-        const { error: upErr } = await supabase
-          .from('lending_details')
-          .update({
-            ...(lending.counterparty !== undefined && {
-              counterparty: lending.counterparty,
-            }),
-            ...(lending.direction !== undefined && { direction: lending.direction }),
-            ...(lending.settled !== undefined && {
-              settled: lending.settled,
-              settled_at: lending.settled ? new Date().toISOString() : null,
-            }),
-            ...(lending.due_date !== undefined && { due_date: lending.due_date }),
-          })
-          .eq('transaction_id', id);
-        if (upErr) throw upErr;
-      }
-
-      return data;
+      return data as Transaction;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: KEY });
-    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["transactions"] }),
   });
 }
-
 export function useDeleteTransaction() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('transactions').delete().eq('id', id);
+      const { error } = await supabase.rpc("update_transaction", {
+        p_id: id,
+        p_patch: { deleted_at: new Date().toISOString() },
+        p_lending: null,
+      });
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["transactions"] }),
   });
+}
+export async function setDeleted(ids: string[], deleted: boolean) {
+  const { error } = await supabase.rpc("set_transactions_deleted", {
+    p_ids: ids,
+    p_deleted: deleted,
+  });
+  if (error) throw error;
 }

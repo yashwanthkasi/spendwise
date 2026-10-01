@@ -1,34 +1,34 @@
-import { FormEvent, useState } from 'react';
-import { toast } from 'sonner';
-import { Archive, ArchiveRestore, Pencil, Plus, Trash2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { SheetBody } from '@/components/ui/sheet';
+import { FormEvent, useState } from "react";
+import { toast } from "sonner";
+import { Archive, ArchiveRestore, Plus, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { SheetBody } from "@/components/ui/sheet";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { ColorPicker } from '@/components/ColorSwatch';
+} from "@/components/ui/select";
+import { ColorPicker } from "@/components/ColorSwatch";
 import {
   useCreateGroup,
   useDeleteGroup,
   useGroups,
   useUpdateGroup,
   type GroupInput,
-} from '@/hooks/useGroups';
-import { EMOJI_SUGGESTIONS } from '@/lib/constants';
-import type { Group, GroupKind } from '@/lib/db-types';
-import { cn } from '@/lib/utils';
+} from "@/hooks/useGroups";
+import { EMOJI_SUGGESTIONS } from "@/lib/constants";
+import type { Group, GroupKind } from "@/lib/db-types";
+import { cn } from "@/lib/utils";
 
 const DEFAULT_FORM: GroupInput = {
-  name: '',
-  emoji: '🏠',
-  color: '#6366f1',
-  kind: 'persistent',
+  name: "",
+  emoji: "🏠",
+  color: "#6366f1",
+  kind: "persistent",
   start_date: null,
   end_date: null,
 };
@@ -64,20 +64,20 @@ export function GroupsManager() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!form.name.trim()) {
-      toast.error('Name is required');
+      toast.error("Name is required");
       return;
     }
     try {
       if (editing) {
         await update.mutateAsync({ id: editing.id, patch: form });
-        toast.success('Updated');
+        toast.success("Updated");
       } else {
         await create.mutateAsync(form);
-        toast.success('Created');
+        toast.success("Created");
       }
       setOpen(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed');
+      toast.error(err instanceof Error ? err.message : "Failed");
     }
   }
 
@@ -85,7 +85,7 @@ export function GroupsManager() {
     try {
       await update.mutateAsync({ id: g.id, patch: { archived: !g.archived } });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed');
+      toast.error(err instanceof Error ? err.message : "Failed");
     }
   }
 
@@ -94,7 +94,7 @@ export function GroupsManager() {
     try {
       await del.mutateAsync(g.id);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed');
+      toast.error(err instanceof Error ? err.message : "Failed");
     }
   }
 
@@ -109,7 +109,13 @@ export function GroupsManager() {
         <>
           <div className="flex flex-wrap gap-2">
             {active.map((g) => (
-              <GroupChip key={g.id} g={g} onEdit={openEdit} onArchive={toggleArchive} onDelete={remove} />
+              <GroupChip
+                key={g.id}
+                g={g}
+                onEdit={openEdit}
+                onArchive={toggleArchive}
+                onDelete={remove}
+              />
             ))}
             <button
               onClick={openCreate}
@@ -121,7 +127,9 @@ export function GroupsManager() {
 
           {archived.length > 0 && (
             <div className="space-y-2 pt-2">
-              <div className="text-xs font-medium text-muted-foreground">Archived</div>
+              <div className="text-xs font-medium text-muted-foreground">
+                Archived
+              </div>
               <div className="flex flex-wrap gap-2 opacity-60">
                 {archived.map((g) => (
                   <GroupChip
@@ -141,12 +149,12 @@ export function GroupsManager() {
       <SheetBody
         open={open}
         onOpenChange={setOpen}
-        title={editing ? 'Edit group' : 'New group'}
+        title={editing ? "Edit group" : "New group"}
       >
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label>Name</Label>
-            <Input
+            <Input aria-label="Name"
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
               placeholder="Home / Office / Trip to Goa"
@@ -158,9 +166,11 @@ export function GroupsManager() {
               <Label>Kind</Label>
               <Select
                 value={form.kind}
-                onValueChange={(v) => setForm((f) => ({ ...f, kind: v as GroupKind }))}
+                onValueChange={(v) =>
+                  setForm((f) => ({ ...f, kind: v as GroupKind }))
+                }
               >
-                <SelectTrigger>
+                <SelectTrigger aria-label="Kind">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -177,8 +187,8 @@ export function GroupsManager() {
                     key={e}
                     type="button"
                     className={cn(
-                      'flex h-8 w-8 items-center justify-center rounded-md border text-lg hover:bg-accent',
-                      form.emoji === e && 'border-primary bg-accent',
+                      "flex h-8 w-8 items-center justify-center rounded-md border text-lg hover:bg-accent",
+                      form.emoji === e && "border-primary bg-accent",
                     )}
                     onClick={() => setForm((f) => ({ ...f, emoji: e }))}
                   >
@@ -188,23 +198,26 @@ export function GroupsManager() {
               </div>
             </div>
           </div>
-          {form.kind === 'trip' && (
+          {form.kind === "trip" && (
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Start</Label>
-                <Input
+                <Input aria-label="Start"
                   type="date"
-                  value={form.start_date ?? ''}
+                  value={form.start_date ?? ""}
                   onChange={(e) =>
-                    setForm((f) => ({ ...f, start_date: e.target.value || null }))
+                    setForm((f) => ({
+                      ...f,
+                      start_date: e.target.value || null,
+                    }))
                   }
                 />
               </div>
               <div className="space-y-2">
                 <Label>End</Label>
-                <Input
+                <Input aria-label="End"
                   type="date"
-                  value={form.end_date ?? ''}
+                  value={form.end_date ?? ""}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, end_date: e.target.value || null }))
                   }
@@ -214,14 +227,24 @@ export function GroupsManager() {
           )}
           <div className="space-y-2">
             <Label>Color</Label>
-            <ColorPicker value={form.color} onChange={(c) => setForm((f) => ({ ...f, color: c }))} />
+            <ColorPicker
+              value={form.color}
+              onChange={(c) => setForm((f) => ({ ...f, color: c }))}
+            />
           </div>
           <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+            >
               Cancel
             </Button>
-            <Button type="submit" disabled={create.isPending || update.isPending}>
-              {editing ? 'Save' : 'Create'}
+            <Button
+              type="submit"
+              disabled={create.isPending || update.isPending}
+            >
+              {editing ? "Save" : "Create"}
             </Button>
           </div>
         </form>
@@ -230,45 +253,6 @@ export function GroupsManager() {
   );
 }
 
-function GroupChip({
-  g,
-  onEdit,
-  onArchive,
-  onDelete,
-}: {
-  g: Group;
-  onEdit: (g: Group) => void;
-  onArchive: (g: Group) => void;
-  onDelete: (g: Group) => void;
-}) {
-  return (
-    <div
-      className="group flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs"
-      style={{ backgroundColor: `${g.color ?? '#6366f1'}14`, borderColor: `${g.color ?? '#6366f1'}33` }}
-    >
-      <span>{g.emoji ?? '📁'}</span>
-      <span className="font-medium">{g.name}</span>
-      <span className="ml-1 flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onEdit(g)} aria-label="Edit">
-          <Pencil className="h-3 w-3" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6"
-          onClick={() => onArchive(g)}
-          aria-label={g.archived ? 'Restore' : 'Archive'}
-        >
-          {g.archived ? (
-            <ArchiveRestore className="h-3 w-3" />
-          ) : (
-            <Archive className="h-3 w-3" />
-          )}
-        </Button>
-        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onDelete(g)} aria-label="Delete">
-          <Trash2 className="h-3 w-3 text-destructive" />
-        </Button>
-      </span>
-    </div>
-  );
+function GroupChip({g,onEdit,onArchive,onDelete}:{g:Group;onEdit:(g:Group)=>void;onArchive:(g:Group)=>void;onDelete:(g:Group)=>void}) {
+ return <div className="flex w-full items-center gap-2 border-b py-3"><button type="button" onClick={()=>onEdit(g)} aria-label={`Edit ${g.name}`} className="min-w-0 flex-1 text-left text-sm font-medium"><span className="block truncate">{g.name}</span><span className="mt-1 block text-xs font-normal text-muted-foreground">{g.kind==='trip'?'Trip':'Everyday group'}</span></button><Button variant="ghost" size="icon" onClick={()=>onArchive(g)} aria-label={`${g.archived?'Restore':'Archive'} ${g.name}`}>{g.archived?<ArchiveRestore size={17}/>:<Archive size={17}/>}</Button><Button variant="ghost" size="icon" onClick={()=>onDelete(g)} aria-label={`Delete ${g.name}`}><Trash2 size={17} className="text-muted-foreground"/></Button></div>;
 }

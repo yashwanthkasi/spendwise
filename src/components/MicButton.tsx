@@ -1,31 +1,37 @@
-import { useEffect, useRef, useState } from 'react';
-import { Mic, MicOff, Square } from 'lucide-react';
-import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
-import { isVoiceSupported, startVoiceCapture, type VoiceSession } from '@/services/voice';
+import { useEffect, useRef, useState } from "react";
+import { Mic, MicOff, Square } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import {
+  isVoiceSupported,
+  startVoiceCapture,
+  type VoiceSession,
+} from "@/services/voice";
 
 export function MicButton({
   onTranscript,
+  onDraft,
   disabled,
-  variant = 'icon',
+  variant = "icon",
 }: {
   onTranscript: (text: string) => void;
+  onDraft?: (text:string) => void;
   disabled?: boolean;
   /** 'icon' = small inline button; 'hero' = large tap-to-speak control. */
-  variant?: 'icon' | 'hero';
+  variant?: "icon" | "hero";
 }) {
   const [recording, setRecording] = useState(false);
-  const [interim, setInterim] = useState('');
+  const [interim, setInterim] = useState("");
   const sessionRef = useRef<VoiceSession | null>(null);
-  const lastInterimRef = useRef('');
+  const lastInterimRef = useRef("");
   const supported = isVoiceSupported();
 
   useEffect(() => () => sessionRef.current?.stop(), []);
 
   function toggle() {
     if (!supported) {
-      toast.error('Voice input not supported in this browser');
+      toast.error("Voice input not supported in this browser");
       return;
     }
     if (recording) {
@@ -33,9 +39,10 @@ export function MicButton({
       return;
     }
     setRecording(true);
-    setInterim('');
-    lastInterimRef.current = '';
-    let finalText = '';
+    setInterim("");
+    lastInterimRef.current = "";
+    let finalText = "";
+    let failed = false;
     sessionRef.current = startVoiceCapture({
       onResult: (r) => {
         if (r.isFinal) {
@@ -43,38 +50,40 @@ export function MicButton({
         } else {
           lastInterimRef.current = r.transcript;
           setInterim(r.transcript);
+          onDraft?.(r.transcript);
         }
       },
       onError: (msg) => {
+        failed = true;
         toast.error(`Voice: ${msg}`);
       },
       onEnd: () => {
         setRecording(false);
-        setInterim('');
+        setInterim("");
         sessionRef.current = null;
-        // Prefer the final transcript; fall back to the latest interim if the
-        // engine ended without emitting a final result.
-        const text = (finalText || lastInterimRef.current).trim();
-        if (text) onTranscript(text);
+        // Only a completed transcript may trigger automatic recording.
+        // Interim text is preserved as a draft by the caller.
+        const text = finalText.trim();
+        if (text && !failed) onTranscript(text);
       },
     });
   }
 
   // ── Large hero control ────────────────────────────────────────────────
-  if (variant === 'hero') {
+  if (variant === "hero") {
     return (
       <div className="flex flex-col items-center gap-3">
         <button
           type="button"
           onClick={toggle}
           disabled={disabled || !supported}
-          aria-label={recording ? 'Stop recording' : 'Start voice input'}
+          aria-label={recording ? "Stop recording" : "Start voice input"}
           className={cn(
-            'relative flex h-24 w-24 items-center justify-center rounded-full text-primary-foreground shadow-lg transition-all',
-            'focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring/40 disabled:opacity-50',
+            "relative flex h-24 w-24 items-center justify-center rounded-full text-primary-foreground shadow-lg transition-all",
+            "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring/40 disabled:opacity-50",
             recording
-              ? 'bg-destructive'
-              : 'bg-primary hover:scale-105 active:scale-95',
+              ? "bg-destructive"
+              : "bg-primary hover:scale-105 active:scale-95",
           )}
         >
           {recording && (
@@ -90,10 +99,10 @@ export function MicButton({
         </button>
         <p className="min-h-5 text-center text-sm text-muted-foreground">
           {!supported ? (
-            'Voice not supported here'
+            "Voice not supported here"
           ) : recording ? (
             <span className="font-medium text-foreground">
-              {interim || 'Listening…'}
+              {interim || "Listening…"}
             </span>
           ) : (
             <>Tap and say &ldquo;panipuri 40&rdquo;</>
@@ -107,13 +116,13 @@ export function MicButton({
   return (
     <Button
       type="button"
-      variant={recording ? 'destructive' : 'ghost'}
+      variant={recording ? "destructive" : "ghost"}
       size="icon"
       onClick={toggle}
       disabled={disabled || !supported}
-      aria-label={recording ? 'Stop recording' : 'Start voice input'}
-      className={cn(recording && 'animate-pulse')}
-      title={supported ? (recording ? 'Stop' : 'Speak') : 'Voice unsupported'}
+      aria-label={recording ? "Stop recording" : "Start voice input"}
+      className={cn(recording && "animate-pulse")}
+      title={supported ? (recording ? "Stop" : "Speak") : "Voice unsupported"}
     >
       {!supported ? (
         <MicOff className="h-4 w-4" />

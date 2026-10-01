@@ -1,34 +1,27 @@
 export type TransactionType =
-  | 'expense'
-  | 'income'
-  | 'investment'
-  | 'lending'
-  | 'transfer';
+  "expense" | "income" | "investment" | "lending" | "transfer";
 
-export type GroupKind = 'persistent' | 'trip';
+export type GroupKind = "persistent" | "trip";
 
 export type TransactionSource =
-  | 'manual'
-  | 'text_nl'
-  | 'voice_nl'
-  | 'recurring'
-  | 'import';
+  "manual" | "text_nl" | "voice_nl" | "recurring" | "import";
 
-export type LendingDirection = 'lent' | 'borrowed';
+export type LendingDirection = "lent" | "borrowed";
 
-export type BudgetScope = 'overall' | 'type' | 'category' | 'group';
+export type BudgetScope = "overall" | "type" | "category" | "group";
 
-export type BudgetPeriod = 'monthly' | 'weekly';
+export type BudgetPeriod = "monthly" | "weekly";
 
-export type RecurringCadence = 'daily' | 'weekly' | 'monthly';
+export type RecurringCadence = "daily" | "weekly" | "monthly";
 
 export type Profile = {
   id: string;
   display_name: string | null;
+  location_enabled?: boolean;
   default_group_id: string | null;
   timezone: string;
   created_at: string;
-}
+};
 
 export type Group = {
   id: string;
@@ -41,7 +34,7 @@ export type Group = {
   end_date: string | null;
   archived: boolean;
   created_at: string;
-}
+};
 
 export type Category = {
   id: string;
@@ -53,9 +46,10 @@ export type Category = {
   is_system: boolean;
   description: string | null;
   created_at: string;
-}
+};
 
 export type Transaction = {
+  deleted_at?: string | null;
   id: string;
   user_id: string;
   amount: number;
@@ -71,7 +65,7 @@ export type Transaction = {
   place_label: string | null;
   created_at: string;
   updated_at: string;
-}
+};
 
 export type LendingDetails = {
   transaction_id: string;
@@ -80,7 +74,7 @@ export type LendingDetails = {
   settled: boolean;
   settled_at: string | null;
   due_date: string | null;
-}
+};
 
 export type Budget = {
   id: string;
@@ -91,9 +85,12 @@ export type Budget = {
   period: BudgetPeriod;
   active: boolean;
   created_at: string;
-}
+};
 
 export type RecurringRule = {
+  timezone?: string;
+  scheduler_enabled?: boolean;
+  scheduler_error?: string | null;
   id: string;
   user_id: string;
   template: Record<string, unknown>;
@@ -103,7 +100,7 @@ export type RecurringRule = {
   last_run_at: string | null;
   active: boolean;
   created_at: string;
-}
+};
 
 export type ParseLog = {
   id: string;
@@ -114,11 +111,23 @@ export type ParseLog = {
   corrected: Record<string, unknown> | null;
   model: string | null;
   created_at: string;
-}
+};
 
 export type Database = {
   public: {
     Tables: {
+      category_rules: {
+        Row: {
+          id: string;
+          user_id: string;
+          phrase: string;
+          category_id: string;
+          created_at: string;
+        };
+        Insert: { user_id: string; phrase: string; category_id: string };
+        Update: { phrase?: string; category_id?: string };
+        Relationships: [];
+      };
       profiles: {
         Row: Profile;
         Insert: {
@@ -214,6 +223,8 @@ export type Database = {
           user_id: string;
           template: Record<string, unknown>;
           cadence: RecurringCadence;
+          timezone?: string;
+          scheduler_enabled?: boolean;
           day_of_period?: number | null;
           next_run_at: string;
           last_run_at?: string | null;
@@ -240,7 +251,26 @@ export type Database = {
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      budget_report: { Args: Record<string, never>; Returns: unknown };
+      transaction_page: {
+        Args: { p_filters: object; p_cursor: object | null; p_size: number };
+        Returns: unknown;
+      };
+      transaction_summary: { Args: { p_filters: object }; Returns: unknown };
+      save_transactions: {
+        Args: { p_request_id: string; p_items: object[] };
+        Returns: string[];
+      };
+      update_transaction: {
+        Args: { p_id: string; p_patch: object; p_lending: object | null };
+        Returns: unknown;
+      };
+      set_transactions_deleted: {
+        Args: { p_ids: string[]; p_deleted: boolean };
+        Returns: undefined;
+      };
+    };
     Enums: {
       transaction_type: TransactionType;
       group_kind: GroupKind;
@@ -251,4 +281,4 @@ export type Database = {
       recurring_cadence: RecurringCadence;
     };
   };
-}
+};

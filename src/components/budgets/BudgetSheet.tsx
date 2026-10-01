@@ -1,40 +1,40 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { toast } from 'sonner';
-import { Sparkles } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { SheetBody } from '@/components/ui/sheet';
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import { Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { SheetBody } from "@/components/ui/sheet";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { useCategories } from '@/hooks/useCategories';
-import { useGroups } from '@/hooks/useGroups';
-import { useTransactions } from '@/hooks/useTransactions';
+} from "@/components/ui/select";
+import { useCategories } from "@/hooks/useCategories";
+import { useGroups } from "@/hooks/useGroups";
+import { useTransactions } from "@/hooks/useTransactions";
 import {
   useCreateBudget,
   useUpdateBudget,
   type BudgetInput,
-} from '@/hooks/useBudgets';
-import { TYPE_ORDER } from '@/lib/constants';
+} from "@/hooks/useBudgets";
+import { TYPE_ORDER } from "@/lib/constants";
 import type {
   Budget,
   BudgetPeriod,
   BudgetScope,
   TransactionType,
-} from '@/lib/db-types';
-import { suggestBudgetAmount } from '@/services/budgetSuggest';
-import { formatINR } from '@/lib/utils';
+} from "@/lib/db-types";
+import { suggestBudgetAmount } from "@/services/budgetSuggest";
+import { formatINR } from "@/lib/utils";
 
 const DEFAULT_FORM: BudgetInput = {
-  scope: 'category',
+  scope: "overall",
   scope_id: null,
   amount: 0,
-  period: 'monthly',
+  period: "monthly",
   active: true,
 };
 
@@ -49,7 +49,7 @@ export function BudgetSheet({
 }) {
   const { data: cats = [] } = useCategories();
   const { data: groups = [] } = useGroups();
-  const { data: txns = [] } = useTransactions({ limit: 2000 });
+  const { data: txns = [] } = useTransactions();
   const create = useCreateBudget();
   const update = useUpdateBudget();
 
@@ -84,24 +84,24 @@ export function BudgetSheet({
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!(form.amount > 0)) {
-      toast.error('Amount must be positive');
+      toast.error("Amount must be positive");
       return;
     }
-    if (form.scope !== 'overall' && !form.scope_id) {
-      toast.error('Pick a target for this scope');
+    if (form.scope !== "overall" && !form.scope_id) {
+      toast.error("Pick a target for this scope");
       return;
     }
     try {
       if (editing) {
         await update.mutateAsync({ id: editing.id, patch: form });
-        toast.success('Budget updated');
+        toast.success("Budget updated");
       } else {
         await create.mutateAsync(form);
-        toast.success('Budget created');
+        toast.success("Budget created");
       }
       onOpenChange(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed');
+      toast.error(err instanceof Error ? err.message : "Failed");
     }
   }
 
@@ -109,116 +109,125 @@ export function BudgetSheet({
     <SheetBody
       open={open}
       onOpenChange={onOpenChange}
-      title={editing ? 'Edit budget' : 'New budget'}
+      title={editing ? "Edit budget" : "New budget"}
       description="Cap spending against a category, group, type or overall."
     >
       <form onSubmit={onSubmit} className="space-y-4 pt-1">
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-2">
-            <Label>Scope</Label>
-            <Select
-              value={form.scope}
-              onValueChange={(v) =>
-                setForm((f) => ({
-                  ...f,
-                  scope: v as BudgetScope,
-                  scope_id: null,
-                }))
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="overall">Overall expenses</SelectItem>
-                <SelectItem value="type">Transaction type</SelectItem>
-                <SelectItem value="category">Category</SelectItem>
-                <SelectItem value="group">Group</SelectItem>
-              </SelectContent>
-            </Select>
+        <details
+          open={
+            !!editing &&
+            (editing.scope !== "overall" || editing.period !== "monthly")
+          }
+        >
+          <summary className="cursor-pointer py-2 text-sm">
+            Advanced: category, group, or weekly budget
+          </summary>
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Scope</Label>
+              <Select
+                value={form.scope}
+                onValueChange={(v) =>
+                  setForm((f) => ({
+                    ...f,
+                    scope: v as BudgetScope,
+                    scope_id: null,
+                  }))
+                }
+              >
+                <SelectTrigger aria-label="Scope">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="overall">Overall expenses</SelectItem>
+                  <SelectItem value="type">Transaction type</SelectItem>
+                  <SelectItem value="category">Category</SelectItem>
+                  <SelectItem value="group">Group</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Period</Label>
+              <Select
+                value={form.period}
+                onValueChange={(v) =>
+                  setForm((f) => ({ ...f, period: v as BudgetPeriod }))
+                }
+              >
+                <SelectTrigger aria-label="Period">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                  <SelectItem value="weekly">Weekly</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label>Period</Label>
-            <Select
-              value={form.period}
-              onValueChange={(v) =>
-                setForm((f) => ({ ...f, period: v as BudgetPeriod }))
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="monthly">Monthly</SelectItem>
-                <SelectItem value="weekly">Weekly</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
 
-        {form.scope === 'type' && (
-          <div className="space-y-2">
-            <Label>Type</Label>
-            <Select
-              value={form.scope_id ?? ''}
-              onValueChange={(v) =>
-                setForm((f) => ({ ...f, scope_id: v as TransactionType }))
-              }
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Pick a type" />
-              </SelectTrigger>
-              <SelectContent>
-                {TYPE_ORDER.map((t) => (
-                  <SelectItem key={t} value={t}>
-                    {t}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-        {form.scope === 'category' && (
-          <div className="space-y-2">
-            <Label>Category</Label>
-            <Select
-              value={form.scope_id ?? ''}
-              onValueChange={(v) => setForm((f) => ({ ...f, scope_id: v }))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Pick a category" />
-              </SelectTrigger>
-              <SelectContent>
-                {cats.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.emoji ?? '🏷️'} {c.name} · {c.type}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-        {form.scope === 'group' && (
-          <div className="space-y-2">
-            <Label>Group</Label>
-            <Select
-              value={form.scope_id ?? ''}
-              onValueChange={(v) => setForm((f) => ({ ...f, scope_id: v }))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Pick a group" />
-              </SelectTrigger>
-              <SelectContent>
-                {groups.map((g) => (
-                  <SelectItem key={g.id} value={g.id}>
-                    {g.emoji ?? '📁'} {g.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
+          {form.scope === "type" && (
+            <div className="space-y-2">
+              <Label>Type</Label>
+              <Select
+                value={form.scope_id ?? ""}
+                onValueChange={(v) =>
+                  setForm((f) => ({ ...f, scope_id: v as TransactionType }))
+                }
+              >
+                <SelectTrigger aria-label="Type">
+                  <SelectValue placeholder="Pick a type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TYPE_ORDER.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          {form.scope === "category" && (
+            <div className="space-y-2">
+              <Label>Category</Label>
+              <Select
+                value={form.scope_id ?? ""}
+                onValueChange={(v) => setForm((f) => ({ ...f, scope_id: v }))}
+              >
+                <SelectTrigger aria-label="Category">
+                  <SelectValue placeholder="Pick a category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {cats.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.emoji ?? "🏷️"} {c.name} · {c.type}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          {form.scope === "group" && (
+            <div className="space-y-2">
+              <Label>Group</Label>
+              <Select
+                value={form.scope_id ?? ""}
+                onValueChange={(v) => setForm((f) => ({ ...f, scope_id: v }))}
+              >
+                <SelectTrigger aria-label="Group">
+                  <SelectValue placeholder="Pick a group" />
+                </SelectTrigger>
+                <SelectContent>
+                  {groups.map((g) => (
+                    <SelectItem key={g.id} value={g.id}>
+                      {g.emoji ?? "📁"} {g.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </details>
         <div className="space-y-2">
           <div className="flex items-end justify-between">
             <Label>Amount (₹)</Label>
@@ -235,11 +244,11 @@ export function BudgetSheet({
               </button>
             )}
           </div>
-          <Input
+          <Input aria-label="Amount (₹)"
             type="number"
             min="1"
             step="0.01"
-            value={form.amount || ''}
+            value={form.amount || ""}
             onChange={(e) =>
               setForm((f) => ({ ...f, amount: Number(e.target.value) }))
             }
@@ -247,7 +256,7 @@ export function BudgetSheet({
           />
           {suggestion ? (
             <p className="text-xs text-muted-foreground">{suggestion.basis}</p>
-          ) : form.scope !== 'overall' && form.scope_id ? (
+          ) : form.scope !== "overall" && form.scope_id ? (
             <p className="text-xs text-muted-foreground">
               Not enough past data to suggest a number yet.
             </p>
@@ -262,11 +271,8 @@ export function BudgetSheet({
           >
             Cancel
           </Button>
-          <Button
-            type="submit"
-            disabled={create.isPending || update.isPending}
-          >
-            {editing ? 'Save' : 'Create'}
+          <Button type="submit" disabled={create.isPending || update.isPending}>
+            {editing ? "Save" : "Create"}
           </Button>
         </div>
       </form>

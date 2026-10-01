@@ -1,302 +1,229 @@
-import { useMemo, useState } from 'react';
-import { toast } from 'sonner';
-import { Plus, Target } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
-import { PageHeader } from '@/components/PageHeader';
-import { BudgetCard } from '@/components/budgets/BudgetCard';
-import { BudgetSheet } from '@/components/budgets/BudgetSheet';
-import { BudgetHistorySheet } from '@/components/budgets/BudgetHistorySheet';
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
+import { formatInTimeZone } from "date-fns-tz";
+import { toast } from "sonner";
 import {
   useBudgets,
-  useDeleteBudget,
   useUpdateBudget,
-} from '@/hooks/useBudgets';
-import { useCategories } from '@/hooks/useCategories';
-import { useGroups } from '@/hooks/useGroups';
-import { useTransactions } from '@/hooks/useTransactions';
-import {
-  computeBudgetHistory,
-  computeBudgetProgress,
-  describeBudgetLabel,
-  periodRangeAt,
-  filterForScope,
-} from '@/lib/budgetCalc';
-import { formatINR, cn } from '@/lib/utils';
-import type { Budget } from '@/lib/db-types';
-
+  useDeleteBudget,
+} from "@/hooks/useBudgets";
+import { useCategories } from "@/hooks/useCategories";
+import { useGroups } from "@/hooks/useGroups";
+import { useAuth } from "@/hooks/useAuth";
+import { useProfile } from "@/hooks/useProfile";
+import { supabase } from "@/lib/supabase";
+import type { Budget } from "@/lib/db-types";
+import { describeBudgetLabel } from "@/lib/budgetCalc";
+import { formatINR } from "@/lib/utils";
+import { PageHeader } from "@/components/PageHeader";
+import { QueryState } from "@/components/QueryState";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { SheetBody } from "@/components/ui/sheet";
+import { BudgetSheet } from "@/components/budgets/BudgetSheet";
+type Period = {
+  id: string;
+  period_offset: number;
+  period_start: string;
+  period_end: string;
+  spent: number;
+};
 export default function Budgets() {
-  const { data: budgets = [], isLoading } = useBudgets();
-  const { data: txns = [] } = useTransactions({ limit: 5000 });
+  const budgets = useBudgets();
+  const { user } = useAuth();
+  const { data: profile } = useProfile();
   const { data: cats = [] } = useCategories();
-  const { data: groups = [] } = useGroups();
+  const { data: groups = [] } = useGroups({ includeArchived: true });
   const update = useUpdateBudget();
   const del = useDeleteBudget();
-
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Budget | null>(null);
-  const [historyOf, setHistoryOf] = useState<Budget | null>(null);
-
-  function openCreate() {
-    setEditing(null);
-    setSheetOpen(true);
-  }
-  function openEdit(b: Budget) {
-    setHistoryOf(null);
-    setEditing(b);
-    setSheetOpen(true);
-  }
-
-  async function removeBudget(b: Budget) {
-    if (!confirm(`Delete the "${describeBudgetLabel(b, cats, groups)}" budget?`)) return;
-    try {
-      await del.mutateAsync(b.id);
-      setHistoryOf(null);
-      toast.success('Deleted');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed');
-    }
-  }
-
-  async function toggleActive(b: Budget) {
-    try {
-      await update.mutateAsync({ id: b.id, patch: { active: !b.active } });
-      toast.success(b.active ? 'Paused' : 'Resumed');
-      setHistoryOf(null);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed');
-    }
-  }
-
-  // ── derived ────────────────────────────────────────────────────────
-  const active = useMemo(() => budgets.filter((b) => b.active), [budgets]);
-  const inactive = useMemo(() => budgets.filter((b) => !b.active), [budgets]);
-
-  const activeProgress = useMemo(
-    () =>
-      active.map((b) => ({
-        budget: b,
-        progress: computeBudgetProgress(b, txns, cats, groups),
-        history: computeBudgetHistory(b, txns, 6),
-      })),
-    [active, txns, cats, groups],
-  );
-
-  // Completed = last period's progress for every active budget
-  const completed = useMemo(
-    () =>
-      active.map((b) => {
-        const last = periodRangeAt(b.period, -1);
-        const spent = filterForScope(b, txns, last).reduce(
-          (acc, t) => acc + Number(t.amount),
-          0,
-        );
-        const limit = Number(b.amount);
-        return {
-          budget: b,
-          label: describeBudgetLabel(b, cats, groups),
-          rangeLabel: last.label,
-          spent,
-          limit,
-          over: spent > limit,
-        };
-      }),
-    [active, txns, cats, groups],
-  );
-
-  const monthlyAggregate = useMemo(() => {
-    const monthlyActive = activeProgress.filter(
-      (p) => p.budget.period === 'monthly',
-    );
-    const spent = monthlyActive.reduce((acc, p) => acc + p.progress.spent, 0);
-    const limit = monthlyActive.reduce(
-      (acc, p) => acc + Number(p.budget.amount),
-      0,
-    );
-    return { spent, limit, over: spent > limit && limit > 0 };
-  }, [activeProgress]);
-
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        <PageHeader title="Budgets" />
-        <p className="text-sm text-muted-foreground">Loading…</p>
-      </div>
-    );
-  }
-
+  const [selected, setSelected] = useState<Budget | null>(null);
+  const report = useQuery({
+    queryKey: ["transactions", user?.id, "budgets", budgets.data],
+    enabled: !!user,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("budget_report");
+      if (error) throw error;
+      return data as Period[];
+    },
+  });
+  const timezone = profile?.timezone ?? "Asia/Kolkata";
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
+      <Link to="/more" className="text-sm text-muted-foreground">
+        ← More
+      </Link>
       <PageHeader
         title="Budgets"
+        subtitle="A little intention goes a long way."
         action={
-          <Button size="sm" onClick={openCreate} className="gap-1.5">
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">New</span>
+          <Button
+            onClick={() => {
+              setEditing(null);
+              setOpen(true);
+            }}
+          >
+            New budget
           </Button>
         }
       />
-
-      {/* Roll-up tile */}
-      {activeProgress.length > 0 && monthlyAggregate.limit > 0 && (
-        <Card>
-          <CardContent className="space-y-2 p-4">
-            <div className="flex items-baseline justify-between">
-              <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                This month so far
-              </span>
-              <span className="text-xl font-bold tabular-nums">
-                {formatINR(monthlyAggregate.spent)}
-                <span className="ml-1 text-xs font-normal text-muted-foreground">
-                  / {formatINR(monthlyAggregate.limit)}
-                </span>
-              </span>
-            </div>
-            <Progress
-              value={monthlyAggregate.spent}
-              max={monthlyAggregate.limit}
-              barClassName={
-                monthlyAggregate.over ? 'bg-destructive' : 'bg-emerald-500'
-              }
-            />
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Active */}
-      <section className="space-y-2">
-        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Active
+      <p className="text-sm text-muted-foreground">
+        Each budget tracks its own scope. Overlapping budgets stay separate.
+      </p>
+      <QueryState
+        loading={budgets.isLoading || report.isLoading}
+        error={budgets.error || report.error}
+        retry={() => {
+          void budgets.refetch();
+          void report.refetch();
+        }}
+      />
+      {!budgets.isLoading && !budgets.error && !budgets.data?.length && (
+        <div className="rounded-xl border border-dashed p-8 text-center">
+          <p className="font-medium">Make a plan for this month</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Start with one spending limit. Add category or group limits when you
+            need them.
+          </p>
         </div>
-        {activeProgress.length === 0 ? (
-          <div className="space-y-3 rounded-xl border border-dashed p-8 text-center">
-            <Target className="mx-auto h-8 w-8 text-muted-foreground" />
-            <div className="space-y-1">
-              <div className="text-sm font-medium">No budgets yet</div>
-              <p className="text-xs text-muted-foreground">
-                Set caps per category, group, or overall. Suggested limits use your
-                past spend.
-              </p>
+      )}
+      {report.data && (
+        <div className="grid gap-4 md:grid-cols-2">
+          {budgets.data?.map((b) => {
+            const current = report.data.find(
+              (r) => r.id === b.id && r.period_offset === 0,
+            );
+            const spent = current?.spent ?? 0;
+            const remaining = Number(b.amount) - spent;
+            return (
+              <button
+                key={b.id}
+                onClick={() => setSelected(b)}
+                className="space-y-4 rounded-xl border bg-card p-5 text-left"
+              >
+                <div className="flex justify-between gap-3">
+                  <span className="text-sm font-medium">
+                    {describeBudgetLabel(b, cats, groups)}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {b.active ? b.period : "Paused"}
+                  </span>
+                </div>
+                <p className="text-xl font-semibold tabular-nums">
+                  {formatINR(spent)}
+                  <span className="ml-1 text-xs font-normal text-muted-foreground">
+                    of {formatINR(Number(b.amount))}
+                  </span>
+                </p>
+                <Progress
+                  value={spent}
+                  max={Number(b.amount)}
+                  barClassName={remaining < 0 ? "bg-destructive" : undefined}
+                />
+                <p
+                  className={`text-xs ${remaining < 0 ? "text-destructive" : "text-muted-foreground"}`}
+                >
+                  {formatINR(Math.abs(remaining))}{" "}
+                  {remaining < 0 ? "over budget" : "remaining"}
+                </p>
+                <p className="text-xs text-primary">View history & manage →</p>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      <BudgetSheet open={open} onOpenChange={setOpen} editing={editing} />
+      <SheetBody
+        open={!!selected}
+        onOpenChange={(v) => !v && setSelected(null)}
+        title={
+          selected ? describeBudgetLabel(selected, cats, groups) : "Budget"
+        }
+      >
+        {selected && (
+          <div className="space-y-5">
+            <h3 className="text-sm font-medium">Six-period history</h3>
+            <div className="divide-y">
+              {report.data
+                ?.filter((r) => r.id === selected.id)
+                .map((r) => (
+                  <div
+                    key={r.period_offset}
+                    className="flex justify-between gap-3 py-3 text-sm"
+                  >
+                    <span>
+                      {formatInTimeZone(
+                        r.period_start,
+                        timezone,
+                        selected.period === "weekly"
+                          ? "d MMM yyyy"
+                          : "MMMM yyyy",
+                      )}
+                    </span>
+                    <span
+                      className={
+                        r.spent > Number(selected.amount)
+                          ? "text-destructive"
+                          : ""
+                      }
+                    >
+                      {formatINR(r.spent)}
+                    </span>
+                  </div>
+                ))}
             </div>
-            <Button size="sm" onClick={openCreate}>
-              <Plus className="h-4 w-4" /> Create your first budget
-            </Button>
-          </div>
-        ) : (
-          <div className="grid gap-2 md:grid-cols-2">
-            {activeProgress.map((p) => (
-              <BudgetCard
-                key={p.budget.id}
-                progress={p.progress}
-                history={p.history}
-                onOpen={() => setHistoryOf(p.budget)}
-              />
-            ))}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                onClick={() => {
+                  setEditing(selected);
+                  setSelected(null);
+                  setOpen(true);
+                }}
+              >
+                Edit budget
+              </Button>
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  try {
+                    await update.mutateAsync({
+                      id: selected.id,
+                      patch: { active: !selected.active },
+                    });
+                    setSelected(null);
+                  } catch {
+                    toast.error("Could not update budget");
+                  }
+                }}
+              >
+                {selected.active ? "Pause" : "Resume"}
+              </Button>
+              <Button
+                variant="ghost"
+                className="text-destructive"
+                onClick={async () => {
+                  if (
+                    !confirm(
+                      "Delete this budget? Your transactions will remain.",
+                    )
+                  )
+                    return;
+                  try {
+                    await del.mutateAsync(selected.id);
+                    setSelected(null);
+                  } catch {
+                    toast.error("Could not delete budget");
+                  }
+                }}
+              >
+                Delete
+              </Button>
+            </div>
           </div>
         )}
-      </section>
-
-      {/* Completed (last period for each active budget) */}
-      {completed.some((c) => c.spent > 0) && (
-        <section className="space-y-2">
-          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Last period
-          </div>
-          <div className="grid gap-2 md:grid-cols-2">
-            {completed
-              .filter((c) => c.spent > 0)
-              .map((c) => (
-                <Card key={c.budget.id}>
-                  <CardContent className="space-y-2 p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-medium">
-                          {c.label}
-                        </div>
-                        <div className="text-[11px] text-muted-foreground">
-                          {c.rangeLabel}
-                        </div>
-                      </div>
-                      <span
-                        className={cn(
-                          'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium',
-                          c.over
-                            ? 'bg-destructive/10 text-destructive'
-                            : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-                        )}
-                      >
-                        {c.over
-                          ? `Over by ${formatINR(c.spent - c.limit)}`
-                          : `Under by ${formatINR(c.limit - c.spent)}`}
-                      </span>
-                    </div>
-                    <div className="flex items-baseline justify-between text-xs">
-                      <span className="tabular-nums">
-                        {formatINR(c.spent)} / {formatINR(c.limit)}
-                      </span>
-                    </div>
-                    <Progress
-                      value={c.spent}
-                      max={c.limit}
-                      barClassName={c.over ? 'bg-destructive' : 'bg-emerald-500'}
-                    />
-                  </CardContent>
-                </Card>
-              ))}
-          </div>
-        </section>
-      )}
-
-      {/* Inactive */}
-      {inactive.length > 0 && (
-        <section className="space-y-2">
-          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Paused
-          </div>
-          <div className="grid gap-2 md:grid-cols-2">
-            {inactive.map((b) => (
-              <Card key={b.id} className="opacity-70">
-                <CardContent className="flex items-center justify-between gap-2 p-3">
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">
-                      {describeBudgetLabel(b, cats, groups)}
-                    </div>
-                    <div className="text-[11px] text-muted-foreground">
-                      {b.period} · {formatINR(Number(b.amount))}
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 gap-1">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => toggleActive(b)}
-                    >
-                      Resume
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </section>
-      )}
-
-      <BudgetSheet
-        open={sheetOpen}
-        onOpenChange={(o) => {
-          setSheetOpen(o);
-          if (!o) setEditing(null);
-        }}
-        editing={editing}
-      />
-      <BudgetHistorySheet
-        budget={historyOf}
-        onClose={() => setHistoryOf(null)}
-        onEdit={openEdit}
-        onDelete={removeBudget}
-        onToggleActive={toggleActive}
-      />
+      </SheetBody>
     </div>
   );
 }

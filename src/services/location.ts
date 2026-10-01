@@ -30,13 +30,13 @@ let cached: { place: Place; at: number } | null = null;
 let pending: Promise<Place | null> | null = null;
 
 export function isGeolocationSupported(): boolean {
-  return typeof navigator !== 'undefined' && !!navigator.geolocation;
+  return typeof navigator !== "undefined" && !!navigator.geolocation;
 }
 
 function getPosition(timeout = 15000): Promise<GeolocationPosition> {
   return new Promise((resolve, reject) => {
     if (!isGeolocationSupported()) {
-      reject(new Error('Geolocation unsupported'));
+      reject(new Error("Geolocation unsupported"));
       return;
     }
     navigator.geolocation.getCurrentPosition(resolve, reject, {
@@ -65,14 +65,13 @@ function labelFromGeocode(data: GeocodePayload): string | null {
   const admin = data.localityInfo?.administrative;
   if (Array.isArray(admin) && admin.length > 0) {
     // Most specific administrative area is usually last (highest order).
-    const sorted = [...admin].sort(
-      (a, b) => (b.order ?? 0) - (a.order ?? 0),
-    );
+    const sorted = [...admin].sort((a, b) => (b.order ?? 0) - (a.order ?? 0));
     const name = sorted[0]?.name?.trim();
     if (name) return name;
   }
 
-  if (data.principalSubdivision?.trim()) return data.principalSubdivision.trim();
+  if (data.principalSubdivision?.trim())
+    return data.principalSubdivision.trim();
   if (data.countryName?.trim()) return data.countryName.trim();
   return null;
 }
@@ -104,7 +103,7 @@ async function fetchPlace(): Promise<Place | null> {
     return place;
   } catch (err) {
     // eslint-disable-next-line no-console
-    console.warn('[location] getCurrentPlace failed', err);
+    console.warn("[location] getCurrentPlace failed", err);
     return null;
   }
 }

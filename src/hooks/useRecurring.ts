@@ -1,17 +1,20 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
-import type { RecurringCadence, RecurringRule } from '@/lib/db-types';
+import { useAuth } from "./useAuth";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
+import type { RecurringCadence, RecurringRule } from "@/lib/db-types";
 
-const KEY = ['recurring_rules'] as const;
+const KEY = ["recurring_rules"] as const;
 
 export function useRecurringRules() {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: KEY,
+    queryKey: [...KEY, user?.id],
+    enabled: !!user,
     queryFn: async (): Promise<RecurringRule[]> => {
       const { data, error } = await supabase
-        .from('recurring_rules')
-        .select('*')
-        .order('next_run_at', { ascending: true });
+        .from("recurring_rules")
+        .select("*")
+        .order("next_run_at", { ascending: true });
       if (error) throw error;
       return data ?? [];
     },
@@ -19,6 +22,8 @@ export function useRecurringRules() {
 }
 
 export interface RecurringInput {
+  timezone?: string;
+  scheduler_enabled?: boolean;
   template: Record<string, unknown>;
   cadence: RecurringCadence;
   day_of_period?: number | null;
@@ -32,12 +37,14 @@ export function useCreateRecurring() {
     mutationFn: async (input: RecurringInput): Promise<RecurringRule> => {
       const { data: userData } = await supabase.auth.getUser();
       const user = userData.user;
-      if (!user) throw new Error('Not signed in');
+      if (!user) throw new Error("Not signed in");
       const { data, error } = await supabase
-        .from('recurring_rules')
+        .from("recurring_rules")
         .insert({
           user_id: user.id,
           template: input.template,
+          timezone: input.timezone,
+          scheduler_enabled: input.scheduler_enabled,
           cadence: input.cadence,
           day_of_period: input.day_of_period ?? null,
           next_run_at: input.next_run_at,
@@ -63,9 +70,9 @@ export function useUpdateRecurring() {
       patch: Partial<RecurringRule>;
     }): Promise<RecurringRule> => {
       const { data, error } = await supabase
-        .from('recurring_rules')
+        .from("recurring_rules")
         .update(patch)
-        .eq('id', id)
+        .eq("id", id)
         .select()
         .single();
       if (error) throw error;
@@ -80,9 +87,9 @@ export function useDeleteRecurring() {
   return useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
-        .from('recurring_rules')
+        .from("recurring_rules")
         .delete()
-        .eq('id', id);
+        .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),

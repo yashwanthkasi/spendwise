@@ -1,17 +1,20 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
-import type { Budget, BudgetPeriod, BudgetScope } from '@/lib/db-types';
+import { useAuth } from "./useAuth";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
+import type { Budget, BudgetPeriod, BudgetScope } from "@/lib/db-types";
 
-const KEY = ['budgets'] as const;
+const KEY = ["budgets"] as const;
 
 export function useBudgets() {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: KEY,
+    queryKey: [...KEY, user?.id],
+    enabled: !!user,
     queryFn: async (): Promise<Budget[]> => {
       const { data, error } = await supabase
-        .from('budgets')
-        .select('*')
-        .order('created_at', { ascending: true });
+        .from("budgets")
+        .select("*")
+        .order("created_at", { ascending: true });
       if (error) throw error;
       return data ?? [];
     },
@@ -32,9 +35,9 @@ export function useCreateBudget() {
     mutationFn: async (input: BudgetInput): Promise<Budget> => {
       const { data: userData } = await supabase.auth.getUser();
       const user = userData.user;
-      if (!user) throw new Error('Not signed in');
+      if (!user) throw new Error("Not signed in");
       const { data, error } = await supabase
-        .from('budgets')
+        .from("budgets")
         .insert({
           user_id: user.id,
           scope: input.scope,
@@ -63,9 +66,9 @@ export function useUpdateBudget() {
       patch: Partial<Budget>;
     }): Promise<Budget> => {
       const { data, error } = await supabase
-        .from('budgets')
+        .from("budgets")
         .update(patch)
-        .eq('id', id)
+        .eq("id", id)
         .select()
         .single();
       if (error) throw error;
@@ -79,7 +82,7 @@ export function useDeleteBudget() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('budgets').delete().eq('id', id);
+      const { error } = await supabase.from("budgets").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
